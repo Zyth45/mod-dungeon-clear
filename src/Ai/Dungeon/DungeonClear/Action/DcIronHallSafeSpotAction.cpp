@@ -149,7 +149,7 @@ namespace
             in.targetX = victim->GetPositionX();
             in.targetY = victim->GetPositionY();
             in.reach = PlayerbotAI::IsRanged(bot)
-                           ? sPlayerbotAIConfig.SpellDistance - 2.0f
+                           ? sPlayerbotAIConfig.spellDistance - 2.0f
                            : bot->GetMeleeRange(victim) - 0.5f;
         }
         in.slotSeed = static_cast<uint32>(bot->GetGUID().GetCounter());

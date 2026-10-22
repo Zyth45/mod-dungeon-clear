@@ -80,6 +80,7 @@
 #include "ShamanAiObjectContext.h"
 #include "WarlockAiObjectContext.h"
 #include "WarriorAiObjectContext.h"
+#include "CoaAiObjectContext.h"
 
 #include "BgQueueFill/DcBgQueueFillManager.h"
 #include "DungeonQueueFill/DcDungeonQueueFillManager.h"
@@ -232,6 +233,7 @@ public:
         RegisterClassContexts<RogueAiObjectContext>();
         RegisterClassContexts<ShamanAiObjectContext>();
         RegisterClassContexts<WarlockAiObjectContext>();
+        RegisterClassContexts<CoaAiObjectContext>();
 
         // Base registry — only the class-0 fallback uses it, kept for parity.
         dc_access::SharedStrategyContexts()->Add(new DungeonClearStrategyContext());
