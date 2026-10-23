@@ -409,6 +409,13 @@ namespace DcEventDoorRegistry
             case 184393:  // Old Hillsbrad — Thrall's Prison Door (gossip through
                           // the gate; his script opens it via EVENT_OPEN_DOORS)
                 return true;
+            // Shadowfang Keep — the prison Cell Doors beside Rethilgore's hall.
+            // The route to him runs past them, and a shut cell read as the
+            // corridor's blocker; the prisoners' levers open them (event 1/2).
+            case 18934:   // Shadowfang Keep — Cell Door (Adamant)
+            case 18935:   // Shadowfang Keep — Cell Door
+            case 18936:   // Shadowfang Keep — Cell Door (Ashcrombe)
+                return true;
             // Blackwing Lair — Chromaggus' cage Portcullis (179116, guid 75161
             // at (-7506.3,-1043.2,480.0)). The cage is opened from the RAID's
             // side by the Lever (179148, 65yd south), whose GossipHello does
@@ -1193,9 +1200,9 @@ namespace DcEventDoorRegistry
     {
         switch (goEntry)
         {
-            // Scholomance — interior traversal gates/doors (map 289)
             case 17153:   // Deadmines — Heavy Door (lock-free on the CoA world database)
             case 17154:   // Deadmines — Heavy Door
+            // Scholomance — interior traversal gates/doors (map 289)
             case 175610:  // Door
             case 175611:  // Iron Gate
             case 175612:  // Iron Gate
