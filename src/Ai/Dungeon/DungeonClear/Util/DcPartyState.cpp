@@ -304,8 +304,17 @@ DcPartyState::SpreadGate DcPartyState::GetSpreadGate(Player* bot, AiObjectContex
         // held "Waiting on Yidama, Zesh, Moge (out of range)" with all three within
         // 23yd of it for sixteen minutes. Stranded recovery measures to the tank, so
         // it never saw them.
+        //
+        // The same dead end opens earlier, with the tank between the camp spread
+        // and maxTankGap from its camp: members follow the tank, stand beside it
+        // and fail the camp spread, and the stranded recovery "rescues" them onto
+        // the tank where they already are (BRD heroic, 23/10: "Mardiir Bot out of
+        // range (0yd from the tank; 33yd from the camp / 25)" for ten minutes).
+        // Between maneuvers the tank is home: once it is outside the camp spread
+        // the camp no longer anchors anything.
         if (DungeonClearMath::CampAnchorIsStale(bot->GetExactDist2d(&pull.camp),
-                                                gate.maxTankGap))
+                                                gate.maxTankGap) ||
+            (!bot->IsInCombat() && bot->GetExactDist2d(&pull.camp) > gate.maxSpread))
         {
             gate.anchor = nullptr;
             gate.maxTankGap = 0.0f;
