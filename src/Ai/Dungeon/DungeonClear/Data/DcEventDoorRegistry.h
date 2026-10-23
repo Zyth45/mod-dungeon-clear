@@ -1194,6 +1194,8 @@ namespace DcEventDoorRegistry
         switch (goEntry)
         {
             // Scholomance — interior traversal gates/doors (map 289)
+            case 17153:   // Deadmines — Heavy Door (lock-free on the CoA world database)
+            case 17154:   // Deadmines — Heavy Door
             case 175610:  // Door
             case 175611:  // Iron Gate
             case 175612:  // Iron Gate
