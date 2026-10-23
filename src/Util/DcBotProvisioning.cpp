@@ -74,11 +74,17 @@ namespace DcBotProvisioning
 
     void Regear(Player* bot, std::uint32_t quality)
     {
-        // No strip first: InitEquipment leaves a slot alone when nothing passes
-        // its filters, and on a class it finds no epic for at all (CoA class 26
-        // at level 60) a stripped character would go in naked.
+        // Upgrade in place: no strip, and no second_chance (which destroys the
+        // worn piece before searching). On a class the search finds nothing for
+        // at this quality (several CoA classes at level 60 in epic), the old
+        // piece stays; a still-empty slot is filled one quality lower.
         PlayerbotFactory factory(bot, bot->GetLevel(), quality, /*gearScoreLimit*/ 0);
-        factory.InitEquipment(false, true);
+        factory.InitEquipment(false, false);
+        if (quality > ITEM_QUALITY_RARE)
+        {
+            PlayerbotFactory lower(bot, bot->GetLevel(), ITEM_QUALITY_RARE, /*gearScoreLimit*/ 0);
+            lower.InitEquipment(true, false);
+        }
         if (bot->GetLevel() >= DC_PB_CONFIG(MinEnchantingBotLevel, minEnchantingBotLevel))
             factory.ApplyEnchantAndGemsNew();
         factory.InitAmmo();
