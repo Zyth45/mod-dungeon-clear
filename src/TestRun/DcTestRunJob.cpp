@@ -1086,21 +1086,32 @@ void DcTestRunJob::TickProvisioningRoster()
     _record.level = _level;
 
     // CoA lets only level 60 characters into Heroic and Mythic, and the heroic
-    // queue asks for item level 58 and 350 PvE power. A test party is teleported
-    // in, past the queue, so it is held to the same rules here.
+    // queue asks for item level 58. A test party is teleported in, past the
+    // queue, so it is held to those rules here. The queue's 350 PvE power is
+    // only reported: random bots are geared without it, and the runs are there
+    // to measure how they fare regardless (it is in the record per member).
     if (_coaDifficulty)
     {
         std::string below;
+        std::string lowPower;
         for (DcTestRunRecord::CompEntry const& e : _record.comp)
-            if (e.level < 60 || e.itemLevel < 58.f || e.pvePower < 350)
-                below += Acore::StringFormat("{}{} (level {}, item level {:.0f}, PvE power {})",
-                                             below.empty() ? "" : ", ", e.name, e.level,
-                                             e.itemLevel, e.pvePower);
+        {
+            if (e.level < 60 || e.itemLevel < 58.f)
+                below += Acore::StringFormat("{}{} (level {}, item level {:.0f})",
+                                             below.empty() ? "" : ", ", e.name, e.level, e.itemLevel);
+            else if (e.pvePower < 350)
+                lowPower += Acore::StringFormat("{}{} ({})", lowPower.empty() ? "" : ", ", e.name,
+                                                e.pvePower);
+        }
         if (!below.empty())
         {
             FailSetup("below the heroic/mythic requirements: " + below);
             return;
         }
+        if (!lowPower.empty())
+            LOG_INFO("playerbots.dungeonclear",
+                     "TESTRUN {} below the heroic queue's 350 PvE power (run anyway): {}",
+                     _record.runId, lowPower);
     }
 
     EnterStage(Stage::Grouping);
