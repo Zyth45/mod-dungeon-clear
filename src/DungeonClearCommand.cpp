@@ -431,7 +431,7 @@ public:
         static constexpr char const* kUsage =
             "Usage: .dc test start <dungeon> [heroic] [size=N|10|25] [level=N] [seed=N] "
             "[ilvl=N|none] [quality=normal|uncommon|rare|epic|legendary] [trace=1]\n"
-            "   or: .dc test start <dungeon> party=Tank,Heal,Dps1,Dps2,... [heroic] [trace=1]";
+            "   or: .dc test start <dungeon> party=Tank,Heal,Dps1,Dps2,... [heroic|mythic] [trace=1]";
 
         std::string token;
         std::string party;
@@ -440,6 +440,7 @@ public:
         uint32 size = 0;  // 0 = classic 5-man; size=N (or bare 10/25) fields a raid comp
         DcTestGearTiers::Spec gear;
         bool heroic = false;
+        uint8 coaDifficulty = 0;  // CoA Heroic (1) / Mythic (2) on classic dungeons, party= runs
         bool trace = false;  // Pull Lab trace + oracles (lab_traces/<runId>.jsonl)
         std::istringstream in{std::string(args)};
         std::string word;
@@ -475,6 +476,8 @@ public:
                 size = static_cast<uint32>(std::strtoul(word.c_str() + 5, nullptr, 10));
             else if (word == "heroic")
                 heroic = true;
+            else if (word == "mythic")
+                coaDifficulty = 2;
             else if (word.rfind("trace=", 0) == 0)
                 trace = word.substr(6) == "1" || word.substr(6) == "on";
             else if (token.empty())
@@ -511,7 +514,17 @@ public:
                     "roster is the comp (its length is the size).");
                 return true;
             }
-            DcTestRunManager::Instance().StartRoster(issuer, token, party, heroic, &msg, "", nullptr, &runId);
+            // A classic dungeon has no heroic row in the registry; on CoA it still
+            // has Heroic and Mythic modes, set on the group like any difficulty.
+            if (heroic && !coaDifficulty)
+                if (DcTestDungeonRegistry::Row const* row = DcTestDungeonRegistry::Find(token);
+                    row && row->heroicLevel == 0)
+                {
+                    coaDifficulty = 1;
+                    heroic = false;
+                }
+            DcTestRunManager::Instance().StartRoster(issuer, token, party, heroic, &msg, "", nullptr,
+                                                     &runId, coaDifficulty);
         }
         else
         {

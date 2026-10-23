@@ -147,7 +147,8 @@ public:
                                                           bool heroic,
                                                           std::vector<RosterEntry> const& roster,
                                                           std::string const& planId,
-                                                          std::string* err);
+                                                          std::string* err,
+                                                          uint8 coaDifficulty = 0);
 
     // Drive from the world thread. The one heavyweight PlayerbotFactory::
     // Randomize roll a run performs claims DcProvisionBudget, the realm-wide
@@ -389,6 +390,9 @@ private:
     float _x = 0.f, _y = 0.f, _z = 0.f, _o = 0.f;
     uint32 _level = 0;
     bool _heroic = false;  // run at DUNGEON_DIFFICULTY_HEROIC
+    // CoA keeps Heroic (1) and Mythic (2) modes on classic dungeons, which the
+    // registry's heroicLevel does not know about; 0 leaves the module's choice.
+    uint8 _coaDifficulty = 0;
 
     // Is the run's map a RAID map (drives raid grouping, raid difficulty,
     // bind hygiene and the budget check's difficulty read)? Derived once from

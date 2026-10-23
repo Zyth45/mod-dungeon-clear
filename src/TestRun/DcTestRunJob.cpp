@@ -541,7 +541,8 @@ std::unique_ptr<DcTestRunJob> DcTestRunJob::CreateFromRoster(Player* gm,
                                                              bool heroic,
                                                              std::vector<RosterEntry> const& roster,
                                                              std::string const& planId,
-                                                             std::string* err)
+                                                             std::string* err,
+                                                             uint8 coaDifficulty)
 {
     if (roster.size() < DcTestComp::kMinPartySize ||
         roster.size() > DcTestComp::kMaxPartySize)
@@ -554,6 +555,7 @@ std::unique_ptr<DcTestRunJob> DcTestRunJob::CreateFromRoster(Player* gm,
 
     std::unique_ptr<DcTestRunJob> job(new DcTestRunJob());
     job->_realChars = true;
+    job->_coaDifficulty = coaDifficulty;
 
     // Level is whatever the characters are. The highest of the five stands in
     // for the run until provisioning reads the live values, so the status line
@@ -636,6 +638,7 @@ std::string DcTestRunJob::StatusLine() const
 {
     Stage const stage = _stage.load();
     std::string out = _record.runId + " " + _record.dungeon + (_heroic ? " (heroic)" : "") +
+                      (_coaDifficulty == 1 ? " (CoA heroic)" : _coaDifficulty == 2 ? " (CoA mythic 0)" : "") +
                       " [" + StageName(stage) + "] elapsed " + std::to_string(_totalMs / 1000) + "s";
     // The gear ceiling belongs in the start confirmation: it is the one run
     // parameter with no visible effect until the party is already fighting.
@@ -1140,8 +1143,9 @@ void DcTestRunJob::TickGrouping()
             // a raid row (the registry validation refuses it).
             group->SetRaidDifficulty(RAID_DIFFICULTY_10MAN_NORMAL);
         else
-            group->SetDungeonDifficulty(_heroic ? DUNGEON_DIFFICULTY_HEROIC
-                                                : DUNGEON_DIFFICULTY_NORMAL);
+            group->SetDungeonDifficulty(_coaDifficulty ? Difficulty(_coaDifficulty)
+                                        : _heroic ? DUNGEON_DIFFICULTY_HEROIC
+                                                  : DUNGEON_DIFFICULTY_NORMAL);
         _tankGuid = tank->GetGUID();
         _groupFormed = true;
     }

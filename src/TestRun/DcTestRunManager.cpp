@@ -178,7 +178,7 @@ bool DcTestRunManager::StartLab(Player* gm, std::string const& dungeonToken, uin
 bool DcTestRunManager::StartRoster(Player* gm, std::string const& dungeonToken,
                                    std::string const& partySpec, bool heroic, std::string* msg,
                                    std::string const& planId, StartErr* errOut,
-                                   std::string* runIdOut)
+                                   std::string* runIdOut, uint8 coaDifficulty)
 {
     if (errOut)
         *errOut = StartErr::None;
@@ -269,7 +269,7 @@ bool DcTestRunManager::StartRoster(Player* gm, std::string const& dungeonToken,
 
     std::string err;
     std::unique_ptr<DcTestRunJob> job =
-        DcTestRunJob::CreateFromRoster(gm, *row, heroic, roster, planId, &err);
+        DcTestRunJob::CreateFromRoster(gm, *row, heroic, roster, planId, &err, coaDifficulty);
     if (!job)
         return fail(StartErr::BadRoster, err);
 
