@@ -40,6 +40,10 @@ namespace DcBotProvisioning
     // ClearEverything() drags in a level/talent/skill reset we do not want here.
     void StripEquipment(Player* bot);
 
+    // Fresh gear for the character's own level and spec, nothing else: no
+    // relevel, no talent reroll. Used by roster runs given `regear`.
+    void Regear(Player* bot, std::uint32_t quality);
+
     // The one heavyweight factory pass: strip, full Randomize at `level`, force
     // `specNo` (-1 = keep the random roll) and re-gear/re-glyph/re-enchant for
     // it, then pet and ammo, then ResetStrategies.

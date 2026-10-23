@@ -431,7 +431,7 @@ public:
         static constexpr char const* kUsage =
             "Usage: .dc test start <dungeon> [heroic] [size=N|10|25] [level=N] [seed=N] "
             "[ilvl=N|none] [quality=normal|uncommon|rare|epic|legendary] [trace=1]\n"
-            "   or: .dc test start <dungeon> party=Tank,Heal,Dps1,Dps2,... [heroic|mythic] [trace=1]";
+            "   or: .dc test start <dungeon> party=Tank,Heal,Dps1,Dps2,... [heroic|mythic] [regear] [trace=1]";
 
         std::string token;
         std::string party;
@@ -441,6 +441,7 @@ public:
         DcTestGearTiers::Spec gear;
         bool heroic = false;
         uint8 coaDifficulty = 0;  // CoA Heroic (1) / Mythic (2) on classic dungeons, party= runs
+        bool regear = false;      // party= runs: fresh epic gear for each member first
         bool trace = false;  // Pull Lab trace + oracles (lab_traces/<runId>.jsonl)
         std::istringstream in{std::string(args)};
         std::string word;
@@ -478,6 +479,8 @@ public:
                 heroic = true;
             else if (word == "mythic")
                 coaDifficulty = 2;
+            else if (word == "regear" || word == "regear=1")
+                regear = true;
             else if (word.rfind("trace=", 0) == 0)
                 trace = word.substr(6) == "1" || word.substr(6) == "on";
             else if (token.empty())
@@ -524,7 +527,7 @@ public:
                     heroic = false;
                 }
             DcTestRunManager::Instance().StartRoster(issuer, token, party, heroic, &msg, "", nullptr,
-                                                     &runId, coaDifficulty);
+                                                     &runId, coaDifficulty, regear);
         }
         else
         {

@@ -72,6 +72,16 @@ namespace DcBotProvisioning
                 bot->DestroyItem(INVENTORY_SLOT_BAG_0, slot, true);
     }
 
+    void Regear(Player* bot, std::uint32_t quality)
+    {
+        PlayerbotFactory factory(bot, bot->GetLevel(), quality, /*gearScoreLimit*/ 0);
+        StripEquipment(bot);
+        factory.InitEquipment(false, true);
+        if (bot->GetLevel() >= DC_PB_CONFIG(MinEnchantingBotLevel, minEnchantingBotLevel))
+            factory.ApplyEnchantAndGemsNew();
+        factory.InitAmmo();
+    }
+
     void Roll(Player* bot, std::uint32_t level, std::uint32_t quality,
               std::uint32_t gearScoreLimit, int specNo)
     {

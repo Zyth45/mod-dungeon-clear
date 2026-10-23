@@ -95,7 +95,7 @@ public:
     bool StartRoster(Player* gm, std::string const& dungeonToken, std::string const& partySpec,
                      bool heroic, std::string* msg, std::string const& planId = "",
                      StartErr* errOut = nullptr, std::string* runIdOut = nullptr,
-                     uint8 coaDifficulty = 0);
+                     uint8 coaDifficulty = 0, bool regear = false);
 
     // Launch a Pull Lab party (src/Lab): the ordinary pool party of exactly
     // `comp`, handed to `driver` once it is standing in a fresh instance of

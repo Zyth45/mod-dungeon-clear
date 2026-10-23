@@ -545,7 +545,8 @@ std::unique_ptr<DcTestRunJob> DcTestRunJob::CreateFromRoster(Player* gm,
                                                              std::vector<RosterEntry> const& roster,
                                                              std::string const& planId,
                                                              std::string* err,
-                                                             uint8 coaDifficulty)
+                                                             uint8 coaDifficulty,
+                                                             bool regear)
 {
     if (roster.size() < DcTestComp::kMinPartySize ||
         roster.size() > DcTestComp::kMaxPartySize)
@@ -559,6 +560,7 @@ std::unique_ptr<DcTestRunJob> DcTestRunJob::CreateFromRoster(Player* gm,
     std::unique_ptr<DcTestRunJob> job(new DcTestRunJob());
     job->_realChars = true;
     job->_coaDifficulty = coaDifficulty;
+    job->_regear = regear;
 
     // Level is whatever the characters are. The highest of the five stands in
     // for the run until provisioning reads the live values, so the status line
@@ -1036,6 +1038,12 @@ void DcTestRunJob::TickProvisioningRoster()
             return;  // transient — retry next tick; the stage timeout bounds it
 
         UndoUnwantedGuild(bot, slot);
+        if (_regear)
+        {
+            DcBotProvisioning::Regear(bot, ITEM_QUALITY_EPIC);
+            LOG_INFO("playerbots.dungeonclear", "TESTRUN {} regeared {} (level {}, epic)",
+                     _record.runId, bot->GetName(), bot->GetLevel());
+        }
         botAI->ResetStrategies();
 
         // What the character's talents actually say, next to what the human
