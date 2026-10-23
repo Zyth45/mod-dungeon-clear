@@ -2815,6 +2815,21 @@ bool DungeonClearDoorBlockedAction::Execute(Event event)
         // via their event — a generic Use() here desyncs the client and skips
         // the event. Never auto-open a listed door; fall through to the pause /
         // (preferably) let the dungeon-event free the prisoner that opens it.
+        // Stratholme: Magistrate Barthilas shuts his two portcullises on aggro
+        // and his SmartAI reopens "the closest one within 90 yd" on death, which
+        // misses them when the pull dragged him off. Once he is dead, do what his
+        // script meant to do.
+        if (door && (door->GetEntry() == 175372 || door->GetEntry() == 175377) &&
+            DcEngageGeometry::IsDoorClosed(door) &&
+            !DcTargeting::FindLiveCreatureOnMap(bot, 10435))
+        {
+            door->SetGoState(GO_STATE_ACTIVE_ALTERNATIVE);
+            LOG_INFO("playerbots.dungeonclear",
+                     "[DC:{}] door-blocked: Barthilas is dead, reopening {} as his script would",
+                     bot->GetName(), door->GetGUID().ToString());
+            return true;
+        }
+
         bool const canOpen = DC_ATTEMPT_DOOR_OPEN && door &&
                              !DcEventDoorRegistry::IsScriptOnly(door->GetEntry()) &&
                              BotCanOpenDoorLikePlayer(bot, door);
