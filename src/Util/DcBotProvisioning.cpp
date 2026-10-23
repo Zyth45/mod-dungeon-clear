@@ -74,8 +74,10 @@ namespace DcBotProvisioning
 
     void Regear(Player* bot, std::uint32_t quality)
     {
+        // No strip first: InitEquipment leaves a slot alone when nothing passes
+        // its filters, and on a class it finds no epic for at all (CoA class 26
+        // at level 60) a stripped character would go in naked.
         PlayerbotFactory factory(bot, bot->GetLevel(), quality, /*gearScoreLimit*/ 0);
-        StripEquipment(bot);
         factory.InitEquipment(false, true);
         if (bot->GetLevel() >= DC_PB_CONFIG(MinEnchantingBotLevel, minEnchantingBotLevel))
             factory.ApplyEnchantAndGemsNew();
