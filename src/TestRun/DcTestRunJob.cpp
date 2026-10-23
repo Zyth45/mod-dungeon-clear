@@ -1059,7 +1059,24 @@ void DcTestRunJob::TickProvisioningRoster()
         entry.fromY = bot->GetPositionY();
         entry.fromZ = bot->GetPositionZ();
         entry.fromO = bot->GetOrientation();
-        entry.itemLevel = bot->GetAverageItemLevel();
+        // Plain item level of what is worn, the number a player reads on the
+        // tooltip (GetAverageItemLevel is the LFG one: quality-discounted, and
+        // an empty slot counts as 0).
+        {
+            float sum = 0.f;
+            uint32 worn = 0;
+            for (uint8 i = EQUIPMENT_SLOT_START; i < EQUIPMENT_SLOT_END; ++i)
+            {
+                if (i == EQUIPMENT_SLOT_BODY || i == EQUIPMENT_SLOT_TABARD)
+                    continue;
+                if (Item* item = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, i))
+                {
+                    sum += item->GetTemplate()->ItemLevel;
+                    ++worn;
+                }
+            }
+            entry.itemLevel = worn ? sum / worn : 0.f;
+        }
         DcTestRunStats::Track(slot.guid.GetCounter());
         _record.comp.push_back(entry);
 
