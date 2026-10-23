@@ -51,8 +51,14 @@ namespace DcTestRoster
                 Trim(comma == std::string::npos ? spec.substr(from) : spec.substr(from, comma - from));
             // Skip empties rather than counting them: a trailing comma or a
             // double separator is a typo in the list, not a sixth member.
+            // A command argument cannot hold a space, so '_' stands for one in
+            // two-word character names ("Nadal_Bot" for "Nadal Bot").
             if (!piece.empty())
-                names.push_back(piece);
+            {
+                std::string name = piece;
+                std::replace(name.begin(), name.end(), '_', ' ');
+                names.push_back(name);
+            }
             if (comma == std::string::npos)
                 break;
             from = comma + 1;

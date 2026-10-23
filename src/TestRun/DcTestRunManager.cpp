@@ -232,8 +232,11 @@ bool DcTestRunManager::StartRoster(Player* gm, std::string const& dungeonToken,
     {
         // The cache is keyed by the stored (capitalised) name; accept whatever
         // case the Command Deck or the typist used.
+        // normalizePlayerName lowercases every letter after the first, which
+        // would turn a two-word name ("Nadal Bot") into one no cache holds.
         std::string name = m.name;
-        normalizePlayerName(name);
+        if (name.find(' ') == std::string::npos)
+            normalizePlayerName(name);
         ObjectGuid const guid = sCharacterCache->GetCharacterGuidByName(name);
         if (!guid)
             return fail(StartErr::BadRoster, "no character named '" + m.name + "'");
