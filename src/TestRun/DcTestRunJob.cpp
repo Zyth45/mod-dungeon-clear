@@ -1385,6 +1385,18 @@ void DcTestRunJob::TickTeleporting()
                 FailSetup("tank vanished before teleport");
             return;
         }
+        // A roster character can come in dead (a ghost or a corpse from its
+        // last session), and a dead player cannot enter an instance: revive the
+        // whole party before the first teleport, the way teardown does.
+        for (Slot const& slot : _slots)
+            if (Player* bot = ObjectAccessor::FindPlayer(slot.guid); bot && !bot->IsAlive())
+            {
+                bot->RemoveAurasDueToSpell(27827);
+                bot->ResurrectPlayer(1.0f, /*applySickness*/ false);
+                bot->SpawnCorpseBones();
+                LOG_INFO("playerbots.dungeonclear", "TESTRUN {} resurrected {} before teleport",
+                         _record.runId, bot->GetName());
+            }
         leader->TeleportTo(_mapId, _x, _y, _z, _o);
         _teleportIssued = true;
     }
