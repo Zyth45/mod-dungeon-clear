@@ -50,6 +50,7 @@ namespace DcTestRunRecord
         // when the run claimed it, damage and effective healing over the run,
         // and the seconds it spent in combat (DPS = damageDone / combatS).
         float itemLevel = 0.f;
+        std::uint32_t pvePower = 0;
         std::uint64_t damageDone = 0;
         std::uint64_t healingDone = 0;
         std::uint32_t combatS = 0;

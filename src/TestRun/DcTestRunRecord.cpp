@@ -140,6 +140,7 @@ namespace DcTestRunRecord
               << ",\"x\":" << c.fromX << ",\"y\":" << c.fromY << ",\"z\":" << c.fromZ
               << ",\"o\":" << c.fromO << "}"
               << ",\"itemLevel\":" << c.itemLevel
+              << ",\"pvePower\":" << c.pvePower
               << ",\"damageDone\":" << c.damageDone
               << ",\"healingDone\":" << c.healingDone
               << ",\"combatS\":" << c.combatS << "}";

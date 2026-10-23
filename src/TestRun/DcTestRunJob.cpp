@@ -5,6 +5,8 @@
 
 #include "TestRun/DcTestRunJob.h"
 #include "TestRun/DcTestRunStats.h"
+#include "AscensionAverageItemLevel.h"
+#include "AscensionItemPower.h"
 
 #include <algorithm>
 #include <array>
@@ -1059,24 +1061,10 @@ void DcTestRunJob::TickProvisioningRoster()
         entry.fromY = bot->GetPositionY();
         entry.fromZ = bot->GetPositionZ();
         entry.fromO = bot->GetOrientation();
-        // Plain item level of what is worn, the number a player reads on the
-        // tooltip (GetAverageItemLevel is the LFG one: quality-discounted, and
-        // an empty slot counts as 0).
-        {
-            float sum = 0.f;
-            uint32 worn = 0;
-            for (uint8 i = EQUIPMENT_SLOT_START; i < EQUIPMENT_SLOT_END; ++i)
-            {
-                if (i == EQUIPMENT_SLOT_BODY || i == EQUIPMENT_SLOT_TABARD)
-                    continue;
-                if (Item* item = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, i))
-                {
-                    sum += item->GetTemplate()->ItemLevel;
-                    ++worn;
-                }
-            }
-            entry.itemLevel = worn ? sum / worn : 0.f;
-        }
+        // The item level and PvE power the game itself shows and checks for
+        // the heroic queue (AscensionLfgRandomDungeonRequirements).
+        entry.itemLevel = AscensionAverageItemLevel::Equipped(bot);
+        entry.pvePower = AscensionItemPower::EquippedPvE(bot);
         DcTestRunStats::Track(slot.guid.GetCounter());
         _record.comp.push_back(entry);
 
@@ -1096,6 +1084,24 @@ void DcTestRunJob::TickProvisioningRoster()
     for (DcTestRunRecord::CompEntry const& e : _record.comp)
         _level = std::max(_level, e.level);
     _record.level = _level;
+
+    // CoA lets only level 60 characters into Heroic and Mythic, and the heroic
+    // queue asks for item level 58 and 350 PvE power. A test party is teleported
+    // in, past the queue, so it is held to the same rules here.
+    if (_coaDifficulty)
+    {
+        std::string below;
+        for (DcTestRunRecord::CompEntry const& e : _record.comp)
+            if (e.level < 60 || e.itemLevel < 58.f || e.pvePower < 350)
+                below += Acore::StringFormat("{}{} (level {}, item level {:.0f}, PvE power {})",
+                                             below.empty() ? "" : ", ", e.name, e.level,
+                                             e.itemLevel, e.pvePower);
+        if (!below.empty())
+        {
+            FailSetup("below the heroic/mythic requirements: " + below);
+            return;
+        }
+    }
 
     EnterStage(Stage::Grouping);
 }
