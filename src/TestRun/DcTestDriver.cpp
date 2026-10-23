@@ -282,6 +282,11 @@ namespace DcTestDriver
             if (!TryProvision(name, &provisionWhy))
             {
                 LOG_WARN("playerbots.dungeonclear", "TESTDRIVER {}", provisionWhy);
+                // The account insert is asynchronous on some cores: the read-back
+                // can miss a row that is still in flight, so that one case is
+                // retried on the next command instead of being latched.
+                if (provisionWhy.rfind("created the test driver account", 0) == 0)
+                    _provisionTried = false;
                 _provisionRefusal = provisionWhy;
                 if (why)
                     *why = provisionWhy;
