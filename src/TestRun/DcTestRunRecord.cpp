@@ -138,7 +138,11 @@ namespace DcTestRunRecord
             s << ",\"roleMismatch\":" << (c.roleMismatch ? "true" : "false")
               << ",\"from\":{\"map\":" << c.fromMap
               << ",\"x\":" << c.fromX << ",\"y\":" << c.fromY << ",\"z\":" << c.fromZ
-              << ",\"o\":" << c.fromO << "}}";
+              << ",\"o\":" << c.fromO << "}"
+              << ",\"itemLevel\":" << c.itemLevel
+              << ",\"damageDone\":" << c.damageDone
+              << ",\"healingDone\":" << c.healingDone
+              << ",\"combatS\":" << c.combatS << "}";
         }
         s << "],\"startedAtMs\":" << rec.startedAtMs
           << ",\"endedAtMs\":" << rec.endedAtMs

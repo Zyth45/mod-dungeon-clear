@@ -103,6 +103,7 @@
 #include "TestRun/DcTestPlanManager.h"
 #include "Lab/DcLabManager.h"
 #include "TestRun/DcTestRunManager.h"
+#include "TestRun/DcTestRunStats.h"
 
 namespace
 {
@@ -836,6 +837,7 @@ public:
 
 void AddSC_dungeon_clear_module()
 {
+    AddSC_dc_test_run_stats();
     new DungeonClearRegistrarWorldScript();
     new DungeonClearLoginPlayerScript();
     new DungeonClearPullBrakeScript();

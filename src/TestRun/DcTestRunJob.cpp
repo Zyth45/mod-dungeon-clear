@@ -4,6 +4,7 @@
  */
 
 #include "TestRun/DcTestRunJob.h"
+#include "TestRun/DcTestRunStats.h"
 
 #include <algorithm>
 #include <array>
@@ -1058,6 +1059,8 @@ void DcTestRunJob::TickProvisioningRoster()
         entry.fromY = bot->GetPositionY();
         entry.fromZ = bot->GetPositionZ();
         entry.fromO = bot->GetOrientation();
+        entry.itemLevel = bot->GetAverageItemLevel();
+        DcTestRunStats::Track(slot.guid.GetCounter());
         _record.comp.push_back(entry);
 
         // classId was taken from the character cache at Create; trust the live
@@ -1982,6 +1985,10 @@ bool DcTestRunJob::AnyMemberDead(Player* tank)
 
 void DcTestRunJob::TickMonitoring(uint32 dt)
 {
+    for (Slot const& slot : _slots)
+        if (Player* bot = ObjectAccessor::FindPlayer(slot.guid); bot && bot->IsInCombat())
+            _combatMs[slot.guid.GetCounter()] += dt;
+
     DcTestRun::Observation obs;
     obs.elapsedMs = _monitorMs;
     obs.gmOnline = true;  // GM absence is handled in Tick()
@@ -2646,6 +2653,14 @@ void DcTestRunJob::Teardown()
     // rely on it.
     UnbindFromMap();
 
+    for (DcTestRunRecord::CompEntry& c : _record.comp)
+    {
+        uint32 const low = ObjectGuid(c.guid).GetCounter();
+        DcTestRunStats::Counters const done = DcTestRunStats::Release(low);
+        c.damageDone = done.damageDone;
+        c.healingDone = done.healingDone;
+        c.combatS = _combatMs[low] / 1000;
+    }
     _record.endedAtMs = NowUnixMs();
     _record.durationS = static_cast<uint32>((_record.endedAtMs - _record.startedAtMs) / 1000);
     // A Lab party's runs are recorded by the Lab (dc_labruns.jsonl); the host

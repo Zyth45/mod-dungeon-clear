@@ -45,6 +45,14 @@ namespace DcTestRunRecord
         // so this is what makes a manual recall to the original spot possible.
         std::uint32_t fromMap = 0;
         float fromX = 0.f, fromY = 0.f, fromZ = 0.f, fromO = 0.f;
+
+        // What the member brought and did: average item level of what it wore
+        // when the run claimed it, damage and effective healing over the run,
+        // and the seconds it spent in combat (DPS = damageDone / combatS).
+        float itemLevel = 0.f;
+        std::uint64_t damageDone = 0;
+        std::uint64_t healingDone = 0;
+        std::uint32_t combatS = 0;
     };
 
     struct StatusEntry
