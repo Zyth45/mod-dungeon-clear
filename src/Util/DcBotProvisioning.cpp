@@ -13,6 +13,7 @@
 #include "PlayerbotFactory.h"
 #include "Playerbots.h"
 #include "Util/DcPlayerbotsConfig.h"
+#include "CoaSpecialization.h"
 
 namespace DcBotProvisioning
 {
@@ -31,6 +32,8 @@ namespace DcBotProvisioning
             case 9:  return "warlock";
             case 11: return "druid";
         }
+        if (char const* coa = CoaClassName(classId))
+            return coa;
         return "unknown";
     }
 
