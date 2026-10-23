@@ -1265,6 +1265,26 @@ bool DcTestRunJob::CheckInstanceBudget()
     return true;
 }
 
+// Out of combat, off any flight path and alive: what a transfer into an
+// instance needs from a character that logged in out in the world.
+void DcTestRunJob::PrepareForTeleport(Player* bot) const
+{
+    if (bot->IsInFlight())
+    {
+        bot->GetMotionMaster()->MovementExpired();
+        bot->CleanupAfterTaxiFlight();
+    }
+    bot->CombatStop(true);
+    if (!bot->IsAlive())
+    {
+        bot->RemoveAurasDueToSpell(27827);
+        bot->ResurrectPlayer(1.0f, /*applySickness*/ false);
+        bot->SpawnCorpseBones();
+        LOG_INFO("playerbots.dungeonclear", "TESTRUN {} resurrected {} before teleport",
+                 _record.runId, bot->GetName());
+    }
+}
+
 void DcTestRunJob::TickTeleporting()
 {
     if (!_teleportIssued)
@@ -1393,16 +1413,11 @@ void DcTestRunJob::TickTeleporting()
         // last session), and a dead player cannot enter an instance: revive the
         // whole party before the first teleport, the way teardown does.
         for (Slot const& slot : _slots)
-            if (Player* bot = ObjectAccessor::FindPlayer(slot.guid); bot && !bot->IsAlive())
-            {
-                bot->RemoveAurasDueToSpell(27827);
-                bot->ResurrectPlayer(1.0f, /*applySickness*/ false);
-                bot->SpawnCorpseBones();
-                LOG_INFO("playerbots.dungeonclear", "TESTRUN {} resurrected {} before teleport",
-                         _record.runId, bot->GetName());
-            }
+            if (Player* bot = ObjectAccessor::FindPlayer(slot.guid))
+                PrepareForTeleport(bot);
         leader->TeleportTo(_mapId, _x, _y, _z, _o);
         _teleportIssued = true;
+        _lastTeleportMs = _stageMs;
     }
 
     // Wave 1 — wait for the leader to be standing in a copy of its own.
@@ -1410,6 +1425,14 @@ void DcTestRunJob::TickTeleporting()
     if (!tank || tank->GetMapId() != _mapId || !tank->IsInWorld() ||
         tank->IsBeingTeleported() || !tank->GetInstanceId())
     {
+        // Roster characters log in wherever they last stood, sometimes in a
+        // fight or on a flight path, and the first transfer can be dropped.
+        if (tank && !tank->IsBeingTeleported() && _stageMs - _lastTeleportMs >= TELEPORT_RETRY_MS)
+        {
+            PrepareForTeleport(tank);
+            tank->TeleportTo(_mapId, _x, _y, _z, _o);
+            _lastTeleportMs = _stageMs;
+        }
         if (_stageMs >= Scaled(TELEPORT_TIMEOUT_MS))
             FailSetup("tank did not arrive at the dungeon entrance");
         return;
@@ -1424,17 +1447,11 @@ void DcTestRunJob::TickTeleporting()
             {
                 // A member still out in the world while the tank zones in can
                 // be killed by whatever wanders by; revive it again here.
-                if (!bot->IsAlive())
-                {
-                    bot->RemoveAurasDueToSpell(27827);
-                    bot->ResurrectPlayer(1.0f, /*applySickness*/ false);
-                    bot->SpawnCorpseBones();
-                    LOG_INFO("playerbots.dungeonclear", "TESTRUN {} resurrected {} before teleport",
-                             _record.runId, bot->GetName());
-                }
+                PrepareForTeleport(bot);
                 bot->TeleportTo(_mapId, _x, _y, _z, _o);
             }
         _followersTeleported = true;
+        _lastTeleportMs = _stageMs;
     }
 
     // Arrival is the INSTANCE id, not the map id. Two members of one party can
@@ -1445,6 +1462,7 @@ void DcTestRunJob::TickTeleporting()
     // progressed into a setup failure that names the members and their copies.
     std::string stranded;
     bool allThere = true;
+    bool retried = false;
     for (Slot const& slot : _slots)
     {
         Player* bot = ObjectAccessor::FindPlayer(slot.guid);
@@ -1456,12 +1474,21 @@ void DcTestRunJob::TickTeleporting()
         if (bot->GetMapId() != _mapId || bot->GetInstanceId() != _destInstanceId)
         {
             allThere = false;
+            if (_stageMs - _lastTeleportMs >= TELEPORT_RETRY_MS && bot->GetMapId() != _mapId)
+            {
+                PrepareForTeleport(bot);
+                bot->TeleportTo(_mapId, _x, _y, _z, _o);
+                retried = true;
+            }
             if (!stranded.empty())
                 stranded += ", ";
             stranded += Acore::StringFormat("{} (map {} instance {})", bot->GetName(),
                                             bot->GetMapId(), bot->GetInstanceId());
         }
     }
+
+    if (retried)
+        _lastTeleportMs = _stageMs;
 
     if (allThere)
     {

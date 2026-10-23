@@ -450,6 +450,9 @@ private:
     // party cannot be split across instance copies. See TickTeleporting.
     bool _teleportIssued = false;      // wave 1 (the leader) has been sent
     bool _followersTeleported = false; // wave 2 (everybody else) has been sent
+    uint32 _lastTeleportMs = 0;        // stage time of the last transfer issued
+    static constexpr uint32 TELEPORT_RETRY_MS = 10 * 1000;
+    void PrepareForTeleport(Player* bot) const;
     uint32 _destInstanceId = 0;        // the copy the leader landed in; 0 until it does
     bool _dcOnIssued = false;
     // One-shot so ReassertMaster's diagnostic names the first repair per run
