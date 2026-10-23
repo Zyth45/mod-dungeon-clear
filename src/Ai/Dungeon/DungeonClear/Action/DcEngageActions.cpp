@@ -2918,7 +2918,15 @@ bool DungeonClearDoorBlockedAction::Execute(Event event)
                     LOG_INFO("playerbots.dungeonclear",
                              "[DC:{}] door-blocked: opening {} '{}' as a player would (entitled)",
                              bot->GetName(), door->GetGUID().ToString(), door->GetName());
-                    door->Use(bot);
+                    // A gate that shuts itself within seconds (Stratholme's Service
+                    // Entrance: 3 s) splits a party walking through in a file: the
+                    // tank is past, the rest are left behind it. Hold such a gate
+                    // open long enough for the whole party.
+                    if (door->GetGOInfo()->door.autoCloseTime &&
+                        door->GetGOInfo()->door.autoCloseTime < 30 * IN_MILLISECONDS)
+                        door->UseDoorOrButton(5 * MINUTE * IN_MILLISECONDS, false, bot);
+                    else
+                        door->Use(bot);
                     doorAppr.lastDoorUseGuid = door->GetGUID();
                     doorAppr.lastDoorUseMs = now;
                 }
