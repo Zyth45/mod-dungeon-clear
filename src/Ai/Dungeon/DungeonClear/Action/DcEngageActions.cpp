@@ -38,6 +38,7 @@
 #include "ServerFacade.h"
 #include "SharedDefines.h"
 #include "Ai/Dungeon/DungeonClear/DcApproachState.h"
+#include "Ai/Dungeon/DungeonClear/Data/DcCoaDoorLocks.h"
 #include "Ai/Dungeon/DungeonClear/Data/BossPullbackRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Data/DcEventDoorRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Data/DungeonBossInfo.h"
@@ -202,7 +203,8 @@ namespace
         if (DcEventDoorRegistry::IsKeyExempt(go->GetEntry()))
             return true;
 
-        uint32 const lockId = info->GetLockId();
+        uint32 const lockId = info->GetLockId() ? info->GetLockId()
+                                                : DcCoaDoorLocks::StockLockId(go->GetEntry());
         if (!lockId)
         {
             // Lock-free is the shape of BOTH plain clickable traversal gates and

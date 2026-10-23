@@ -1205,8 +1205,6 @@ namespace DcEventDoorRegistry
             // stay shut after he is down, so the tank lifts them itself.
             case 175372:  // Stratholme — Doodad_LargePortcullis04
             case 175377:  // Stratholme — Barthilas' second portcullis
-            case 17153:   // Deadmines — Heavy Door (lock-free on the CoA world database)
-            case 17154:   // Deadmines — Heavy Door
             // Scholomance — interior traversal gates/doors (map 289)
             case 175610:  // Door
             case 175611:  // Iron Gate
