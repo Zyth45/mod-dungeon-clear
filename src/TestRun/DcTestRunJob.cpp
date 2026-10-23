@@ -1417,7 +1417,19 @@ void DcTestRunJob::TickTeleporting()
         _destInstanceId = tank->GetInstanceId();
         for (std::size_t i = 1; i < _slots.size(); ++i)
             if (Player* bot = ObjectAccessor::FindPlayer(_slots[i].guid))
+            {
+                // A member still out in the world while the tank zones in can
+                // be killed by whatever wanders by; revive it again here.
+                if (!bot->IsAlive())
+                {
+                    bot->RemoveAurasDueToSpell(27827);
+                    bot->ResurrectPlayer(1.0f, /*applySickness*/ false);
+                    bot->SpawnCorpseBones();
+                    LOG_INFO("playerbots.dungeonclear", "TESTRUN {} resurrected {} before teleport",
+                             _record.runId, bot->GetName());
+                }
                 bot->TeleportTo(_mapId, _x, _y, _z, _o);
+            }
         _followersTeleported = true;
     }
 
