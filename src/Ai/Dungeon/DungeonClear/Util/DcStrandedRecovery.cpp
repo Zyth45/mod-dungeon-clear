@@ -4,6 +4,7 @@
  */
 
 #include "DcStrandedRecovery.h"
+#include "Ai/Dungeon/DungeonClear/DcApproachState.h"
 
 #include "Ai/Dungeon/DungeonClear/Data/Events/DungeonEventTables.h"
 #include "Ai/Dungeon/DungeonClear/Data/DungeonBossInfo.h"
@@ -36,6 +37,9 @@
 #include "PlayerbotAI.h"
 #include "Playerbots.h"
 #include "Timer.h"
+
+#include <mutex>
+#include <unordered_map>
 
 namespace
 {
@@ -244,6 +248,26 @@ namespace DcStrandedRecovery
         in.nowMs = now;
         in.lastProgressMs = run.progress.stampMs;
         in.noProgressTimeoutMs = DcSettings::GetUInt(bot, "StrandedRecoveryNoProgressSecs") * 1000;
+
+        // A tank that keeps pulling keeps the clock fresh, yet its party can be
+        // stuck all the same: members pinned at a camp they cannot path to, the
+        // tank yielding "Waiting on X (out of range)" between its pulls (user
+        // test, Gnomeregan, 24/10: three bots on a gantry for minutes). Waiting
+        // that long between pulls, out of a fight, counts as no progress.
+        {
+            DcApproachState const& appr =
+                leaderAI->GetAiObjectContext()->GetValue<DcApproachState&>(DcKey::ApproachState)->Get();
+            // Bots tick on the map threads, several instances at once.
+            static std::mutex notReadyMutex;
+            static std::unordered_map<ObjectGuid, uint32> notReadySince;
+            std::lock_guard<std::mutex> lock(notReadyMutex);
+            ObjectGuid const owner = driver.runOwner->GetGUID();
+            if (appr.partyNotReadyTicks == 0 || partyEngaged)
+                notReadySince.erase(owner);
+            else if (auto [it, fresh] = notReadySince.emplace(owner, now);
+                     !fresh && now - it->second >= in.noProgressTimeoutMs)
+                in.lastProgressMs = now - in.noProgressTimeoutMs - 1;
+        }
         in.partyEngaged = partyEngaged;
         in.maxSpread = bounds.maxSpread;
         in.gateSpread = bounds.campSpread;
