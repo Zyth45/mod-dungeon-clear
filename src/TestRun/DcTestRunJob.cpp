@@ -9,6 +9,7 @@
 #include "AscensionItemPower.h"
 
 #include <algorithm>
+#include <string_view>
 #include <array>
 #include <ctime>
 #include <limits>
