@@ -14,6 +14,14 @@
 
 class PlayerbotAI;
 
+// Check intervals. Every trigger used to run on every AI tick (interval 1),
+// 44 of them per bot; at 50 runs that was ~22 % of the NUC's CPU. The ones
+// that only start something (rest, loot, rez, doors, stalls, recovery, end
+// of run) now look every 500-1000 ms (playerbots reads >= 100 as ms). Those
+// that hold a bot in place or steer combat, the pull and the follow stay at
+// 1: between two checks a trigger reads as inactive, and a hold that lapses
+// for a tick lets another action move the bot.
+
 class DungeonClearIdleTrigger : public Trigger
 {
 public:
@@ -52,7 +60,7 @@ public:
 class DungeonClearEventDueTrigger : public Trigger
 {
 public:
-    DungeonClearEventDueTrigger(PlayerbotAI* botAI) : Trigger(botAI, "dungeon clear event due", 1) {}
+    DungeonClearEventDueTrigger(PlayerbotAI* botAI) : Trigger(botAI, "dungeon clear event due", 500) {}
     bool IsActive() override;
 };
 
@@ -135,14 +143,14 @@ public:
 class DungeonClearRezPartyTrigger : public Trigger
 {
 public:
-    DungeonClearRezPartyTrigger(PlayerbotAI* botAI) : Trigger(botAI, "dungeon clear rez party", 1) {}
+    DungeonClearRezPartyTrigger(PlayerbotAI* botAI) : Trigger(botAI, "dungeon clear rez party", 500) {}
     bool IsActive() override;
 };
 
 class DungeonClearAllClearedTrigger : public Trigger
 {
 public:
-    DungeonClearAllClearedTrigger(PlayerbotAI* botAI) : Trigger(botAI, "dungeon clear all cleared", 1) {}
+    DungeonClearAllClearedTrigger(PlayerbotAI* botAI) : Trigger(botAI, "dungeon clear all cleared", 1000) {}
     bool IsActive() override;
 };
 
@@ -155,7 +163,7 @@ public:
 class DungeonClearRecoverStrandedTrigger : public Trigger
 {
 public:
-    DungeonClearRecoverStrandedTrigger(PlayerbotAI* botAI) : Trigger(botAI, "dungeon clear recover stranded", 1) {}
+    DungeonClearRecoverStrandedTrigger(PlayerbotAI* botAI) : Trigger(botAI, "dungeon clear recover stranded", 1000) {}
     bool IsActive() override;
 };
 
@@ -186,7 +194,7 @@ public:
 class DungeonClearHakkarLootBloodTrigger : public Trigger
 {
 public:
-    DungeonClearHakkarLootBloodTrigger(PlayerbotAI* botAI) : Trigger(botAI, "dungeon clear hakkar loot blood", 1) {}
+    DungeonClearHakkarLootBloodTrigger(PlayerbotAI* botAI) : Trigger(botAI, "dungeon clear hakkar loot blood", 1000) {}
     bool IsActive() override;
 };
 
@@ -195,7 +203,7 @@ public:
 class DungeonClearStalledTrigger : public Trigger
 {
 public:
-    DungeonClearStalledTrigger(PlayerbotAI* botAI) : Trigger(botAI, "dungeon clear stalled", 1) {}
+    DungeonClearStalledTrigger(PlayerbotAI* botAI) : Trigger(botAI, "dungeon clear stalled", 1000) {}
     bool IsActive() override;
 };
 
@@ -215,7 +223,7 @@ public:
 class DungeonClearDoorBlockedTrigger : public Trigger
 {
 public:
-    DungeonClearDoorBlockedTrigger(PlayerbotAI* botAI) : Trigger(botAI, "dungeon clear door blocked", 1) {}
+    DungeonClearDoorBlockedTrigger(PlayerbotAI* botAI) : Trigger(botAI, "dungeon clear door blocked", 500) {}
     bool IsActive() override;
 };
 
@@ -228,7 +236,7 @@ public:
 class DungeonClearDoorReopenedTrigger : public Trigger
 {
 public:
-    DungeonClearDoorReopenedTrigger(PlayerbotAI* botAI) : Trigger(botAI, "dungeon clear door reopened", 1) {}
+    DungeonClearDoorReopenedTrigger(PlayerbotAI* botAI) : Trigger(botAI, "dungeon clear door reopened", 1000) {}
     bool IsActive() override;
 };
 
@@ -242,14 +250,14 @@ public:
 class DungeonClearNeedsDrinkTrigger : public Trigger
 {
 public:
-    DungeonClearNeedsDrinkTrigger(PlayerbotAI* botAI) : Trigger(botAI, "dungeon clear needs drink", 1) {}
+    DungeonClearNeedsDrinkTrigger(PlayerbotAI* botAI) : Trigger(botAI, "dungeon clear needs drink", 1000) {}
     bool IsActive() override;
 };
 
 class DungeonClearNeedsEatTrigger : public Trigger
 {
 public:
-    DungeonClearNeedsEatTrigger(PlayerbotAI* botAI) : Trigger(botAI, "dungeon clear needs eat", 1) {}
+    DungeonClearNeedsEatTrigger(PlayerbotAI* botAI) : Trigger(botAI, "dungeon clear needs eat", 1000) {}
     bool IsActive() override;
 };
 
@@ -267,7 +275,7 @@ public:
 class DungeonClearFilterLootTrigger : public Trigger
 {
 public:
-    DungeonClearFilterLootTrigger(PlayerbotAI* botAI) : Trigger(botAI, "dungeon clear filter loot", 1) {}
+    DungeonClearFilterLootTrigger(PlayerbotAI* botAI) : Trigger(botAI, "dungeon clear filter loot", 1000) {}
     bool IsActive() override;
 };
 
@@ -300,7 +308,7 @@ class DungeonClearLootRollPendingTrigger : public Trigger
 {
 public:
     DungeonClearLootRollPendingTrigger(PlayerbotAI* botAI)
-        : Trigger(botAI, "dungeon clear loot roll pending", 1)
+        : Trigger(botAI, "dungeon clear loot roll pending", 1000)
     {
     }
     bool IsActive() override;
@@ -476,7 +484,7 @@ class DungeonClearBreakStuckCombatTrigger : public Trigger
 {
 public:
     DungeonClearBreakStuckCombatTrigger(PlayerbotAI* botAI)
-        : Trigger(botAI, "dungeon clear break stuck combat", 1)
+        : Trigger(botAI, "dungeon clear break stuck combat", 1000)
     {
     }
     bool IsActive() override;
