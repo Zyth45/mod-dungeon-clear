@@ -1834,11 +1834,20 @@ void DcTestRunJob::TrackDeaths(Player* tank)
     auto onTankMap = [tank](Player* member)
     { return member && member->IsInWorld() && member->GetMapId() == tank->GetMapId(); };
 
+    // Only the run's own party: once a member leaves (or the tank is pulled
+    // into another group) its new group's deaths are none of this run's
+    // business (one run logged 103 "deaths", most of them strangers).
+    auto inRun = [this](Player* member)
+    {
+        return std::any_of(_slots.begin(), _slots.end(),
+                           [member](Slot const& slot) { return slot.guid == member->GetGUID(); });
+    };
+
     if (onTankMap(tank))
         observe(tank);
     if (Group* group = tank->GetGroup())
         for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
-            if (Player* member = ref->GetSource(); member != tank && onTankMap(member))
+            if (Player* member = ref->GetSource(); member != tank && onTankMap(member) && inRun(member))
                 observe(member);
 }
 
@@ -2056,6 +2065,22 @@ void DcTestRunJob::TickMonitoring(uint32 dt)
     for (Slot const& slot : _slots)
         if (Player* bot = ObjectAccessor::FindPlayer(slot.guid); bot && bot->IsInCombat())
             _combatMs[slot.guid.GetCounter()] += dt;
+
+    // A tank that has left the instance (and not just on a loading screen)
+    // ends the run: everything after it is the party wandering the world.
+    if (Player* tank = FindTank(); tank && tank->IsInWorld() && !tank->IsBeingTeleported() &&
+                                   tank->GetMapId() != _mapId)
+    {
+        _tankAwayMs += dt;
+        if (_tankAwayMs >= TANK_AWAY_LIMIT_MS)
+        {
+            Finish(DcTestRun::Verdict::FailDisabled,
+                   Acore::StringFormat("the tank left the instance (now on map {})", tank->GetMapId()));
+            return;
+        }
+    }
+    else
+        _tankAwayMs = 0;
 
     DcTestRun::Observation obs;
     obs.elapsedMs = _monitorMs;

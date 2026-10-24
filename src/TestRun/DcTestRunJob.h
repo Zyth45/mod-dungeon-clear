@@ -455,6 +455,8 @@ private:
     uint32 _lastTeleportMs = 0;        // stage time of the last transfer issued
     std::unordered_map<uint32, uint32> _combatMs;  // member guid low -> ms in combat while monitored
     std::unordered_map<uint32, int32> _lastManaPct; // member guid low -> last living mana %
+    uint32 _tankAwayMs = 0;            // time the tank has spent off the run's map
+    static constexpr uint32 TANK_AWAY_LIMIT_MS = 15 * 1000;
     static constexpr uint32 TELEPORT_RETRY_MS = 10 * 1000;
     void PrepareForTeleport(Player* bot) const;
     uint32 _destInstanceId = 0;        // the copy the leader landed in; 0 until it does
