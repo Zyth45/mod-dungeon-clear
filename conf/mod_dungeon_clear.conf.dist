@@ -198,15 +198,16 @@ DungeonClear.EmergencyRez = 0
 #
 #    DungeonClear.AllowedDifficulties
 #        Dungeon difficulties players may start a clear in, comma separated:
-#        normal, heroic, mythic (case and spaces ignored). Anywhere else
-#        `dc on` is refused with "Dungeon clear is not enabled for <Heroic|
-#        Mythic> dungeons on this realm." Raids and all-bot test parties
-#        (`.dc test`) are not affected.
+#        normal, heroic, mythic (case and spaces ignored). All three by
+#        default; list fewer to restrict a realm, and `dc on` is then refused
+#        elsewhere with "Dungeon clear is not enabled for <Heroic|Mythic>
+#        dungeons on this realm." Raids and all-bot test parties (`.dc test`)
+#        are not affected.
 #
-#        Default: "normal"
+#        Default: "normal,heroic,mythic"
 #
 
-DungeonClear.AllowedDifficulties = "normal"
+DungeonClear.AllowedDifficulties = "normal,heroic,mythic"
 
 #
 #    DungeonClear.DoorBlockedTimeout
