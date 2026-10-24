@@ -1244,6 +1244,22 @@ void DcTestRunJob::TickGrouping()
         FailSetup("group did not form");
 }
 
+namespace
+{
+    // InstanceSaveMgr::PlayerUnbindInstance reads playerBindStorage[guid]
+    // without checking it: for a character that has no bind loaded at all
+    // (a roster character that never finished logging in, a fresh alt) the
+    // operator[] inserts a null wrapper and the next line dereferences it
+    // (NUC crash, 24/10 18:22, a run failing at spawning). Unbind only what
+    // is bound.
+    void UnbindIfBound(ObjectGuid guid, uint32 mapId, Difficulty difficulty, bool deleteFromDB)
+    {
+        BoundInstancesMap const& bound = sInstanceSaveMgr->PlayerGetBoundInstances(guid, difficulty);
+        if (bound.find(mapId) != bound.end())
+            sInstanceSaveMgr->PlayerUnbindInstance(guid, mapId, difficulty, deleteFromDB);
+    }
+}
+
 void DcTestRunJob::UnbindFromMap() const
 {
     // Guid-keyed and offline-safe, which is why the teardown copy can run after
@@ -1252,18 +1268,18 @@ void DcTestRunJob::UnbindFromMap() const
     {
         if (!slot.guid)
             continue;
-        sInstanceSaveMgr->PlayerUnbindInstance(slot.guid, _mapId, DUNGEON_DIFFICULTY_NORMAL,
+        UnbindIfBound(slot.guid, _mapId, DUNGEON_DIFFICULTY_NORMAL,
                                                /*deleteFromDB*/ true);
-        sInstanceSaveMgr->PlayerUnbindInstance(slot.guid, _mapId, DUNGEON_DIFFICULTY_HEROIC,
+        UnbindIfBound(slot.guid, _mapId, DUNGEON_DIFFICULTY_HEROIC,
                                                /*deleteFromDB*/ true);
         // Raid saves are PERMANENT once a boss dies (non-resettable; "reset all
         // instances" skips raids), so one leaked bind poisons every later run
         // of the map for that character. Cover the two raid-only difficulty
         // values as well — raw 0/1 are already covered by the dungeon pair —
         // deleteFromDB both. No-ops for maps/difficulties with no bind.
-        sInstanceSaveMgr->PlayerUnbindInstance(slot.guid, _mapId, RAID_DIFFICULTY_10MAN_HEROIC,
+        UnbindIfBound(slot.guid, _mapId, RAID_DIFFICULTY_10MAN_HEROIC,
                                                /*deleteFromDB*/ true);
-        sInstanceSaveMgr->PlayerUnbindInstance(slot.guid, _mapId, RAID_DIFFICULTY_25MAN_HEROIC,
+        UnbindIfBound(slot.guid, _mapId, RAID_DIFFICULTY_25MAN_HEROIC,
                                                /*deleteFromDB*/ true);
     }
 }
