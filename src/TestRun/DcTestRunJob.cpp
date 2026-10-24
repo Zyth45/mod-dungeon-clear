@@ -1814,7 +1814,7 @@ void DcTestRunJob::TrackDeaths(Player* tank)
                 if (auto m = _lastManaPct.find(low); m != _lastManaPct.end())
                     death.manaPct = m->second;
             }
-            else if (slot.role == "heal")
+            else if (std::string_view(slot.role) == "heal")
             {
                 Player* healer = ObjectAccessor::FindPlayer(slot.guid);
                 death.healerAlive = healer && healer->IsAlive();
