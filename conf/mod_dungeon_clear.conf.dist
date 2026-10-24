@@ -196,6 +196,19 @@ DungeonClear.IgnoreChests = 1
 DungeonClear.EmergencyRez = 0
 
 #
+#    DungeonClear.AllowedDifficulties
+#        Dungeon difficulties players may start a clear in, comma separated:
+#        normal, heroic, mythic (case and spaces ignored). Anywhere else
+#        `dc on` is refused with "Dungeon clear is not enabled for <Heroic|
+#        Mythic> dungeons on this realm." Raids and all-bot test parties
+#        (`.dc test`) are not affected.
+#
+#        Default: "normal"
+#
+
+DungeonClear.AllowedDifficulties = "normal"
+
+#
 #    DungeonClear.DoorBlockedTimeout
 #        Seconds the tank may sit in the "Blocked by a door" state working one
 #        closed door (clicking it, or holding beside it) before it gives up and

@@ -6,6 +6,8 @@
 #include "DungeonClearChatActions.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcRun.h"
 
+#include <algorithm>
+#include <cctype>
 #include <map>
 #include <optional>
 #include <sstream>
@@ -13,6 +15,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "Config.h"
 #include "Creature.h"
 #include "Group.h"
 #include "Map.h"
@@ -57,6 +60,42 @@ namespace
         if (!master || GET_PLAYERBOT_AI(master))
             LOG_WARN("playerbots.dungeonclear", "DC command refused for {}: {}",
                      bot ? bot->GetName() : "<unknown>", why);
+    }
+
+    // DungeonClear.AllowedDifficulties: the dungeon difficulties a realm lets
+    // players run a clear in ("normal", "heroic", "mythic", comma separated,
+    // case and spaces ignored). Returns the refused difficulty's display name,
+    // or "" when this map is allowed. Raids are not covered, and neither are
+    // all-bot test parties (`.dc test`), which must measure every mode.
+    std::string RefusedDifficulty(Player* bot)
+    {
+        Map* map = bot->GetMap();
+        if (!map || !map->IsDungeon() || map->IsRaid())
+            return "";
+        bool human = false;
+        if (Group* group = bot->GetGroup())
+            for (GroupReference* ref = group->GetFirstMember(); ref && !human; ref = ref->next())
+                if (Player* m = ref->GetSource(); m && !GET_PLAYERBOT_AI(m))
+                    human = true;
+        if (!human)
+            return "";
+
+        uint32 const difficulty = uint32(map->GetDifficulty());
+        char const* key = difficulty == 0 ? "normal" : difficulty == 1 ? "heroic" : "mythic";
+        char const* shown = difficulty == 0 ? "Normal" : difficulty == 1 ? "Heroic" : "Mythic";
+
+        std::string allowed = sConfigMgr->GetOption<std::string>("DungeonClear.AllowedDifficulties", "normal", false);
+        std::transform(allowed.begin(), allowed.end(), allowed.begin(),
+                       [](unsigned char c) { return std::tolower(c); });
+        std::istringstream list(allowed);
+        for (std::string item; std::getline(list, item, ',');)
+        {
+            item.erase(std::remove_if(item.begin(), item.end(), [](unsigned char c) { return std::isspace(c); }),
+                       item.end());
+            if (item == key)
+                return "";
+        }
+        return shown;
     }
 
     bool IsAuthorized(Player* bot, Event const& event)
@@ -302,6 +341,13 @@ bool DcOnAction::Execute(Event event)
     if (!bot->GetMap() || !bot->GetMap()->IsDungeon())
     {
         DcRefuse(botAI, bot, "Not in a dungeon.");
+        return false;
+    }
+    if (std::string const refused = RefusedDifficulty(bot); !refused.empty())
+    {
+        std::string const why = "Dungeon clear is not enabled for " + refused + " dungeons on this realm.";
+        DcStatusPublisher::SendAddonMessage(botAI, "CHAT	" + why);
+        DcRefuse(botAI, bot, why);
         return false;
     }
 
