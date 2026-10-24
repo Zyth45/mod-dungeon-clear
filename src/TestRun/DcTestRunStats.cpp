@@ -51,14 +51,25 @@ public:
 
     void OnDamage(Unit* attacker, Unit* victim, uint32& damage) override
     {
-        if (!damage || !victim || victim->IsPlayer())
+        if (!damage || !victim)
             return;
+        uint32 const dealt = std::min<uint32>(damage, victim->GetHealth());
+        if (victim->IsPlayer())
+        {
+            // A member taking a hit from a creature (not friendly fire).
+            if (!attacker || attacker->GetCharmerOrOwnerPlayerOrPlayerItself())
+                return;
+            std::lock_guard<std::mutex> lock(g_mutex);
+            if (auto itr = g_tracked.find(victim->GetGUID().GetCounter()); itr != g_tracked.end())
+                itr->second.damageTaken += dealt;
+            return;
+        }
         uint32 const guid = OwnerGuidLow(attacker);
         if (!guid)
             return;
         std::lock_guard<std::mutex> lock(g_mutex);
         if (auto itr = g_tracked.find(guid); itr != g_tracked.end())
-            itr->second.damageDone += std::min<uint32>(damage, victim->GetHealth());
+            itr->second.damageDone += dealt;
     }
 
     void OnHeal(Unit* healer, Unit* reciever, uint32& gain) override

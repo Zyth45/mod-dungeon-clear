@@ -13,6 +13,7 @@ namespace DcTestRunStats
     {
         uint64 damageDone = 0;
         uint64 healingDone = 0;  // effective: overhealing is left out
+        uint64 damageTaken = 0;  // from creatures, before death
     };
 
     void Track(uint32 guidLow);

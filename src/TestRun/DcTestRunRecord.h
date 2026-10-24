@@ -53,6 +53,7 @@ namespace DcTestRunRecord
         std::uint32_t pvePower = 0;
         std::uint64_t damageDone = 0;
         std::uint64_t healingDone = 0;
+        std::uint64_t damageTaken = 0;
         std::uint32_t combatS = 0;
     };
 
@@ -89,6 +90,10 @@ namespace DcTestRunRecord
         std::string opponent;      // what was on the party; "" if out of combat
         std::uint32_t opponentEntry = 0;
         bool onBoss = false;       // opponent is a roster/flagged boss
+        std::string role;          // the member's role in the comp
+        int32_t manaPct = -1;      // its own mana just before dying (-1: no mana)
+        int32_t healerManaPct = -1;// the healer's mana at that moment (-1: unknown)
+        bool healerAlive = false;
     };
 
     // One pull the Dynamic governor took a verdict on, with what the classifier

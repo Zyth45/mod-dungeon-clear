@@ -454,6 +454,7 @@ private:
     bool _followersTeleported = false; // wave 2 (everybody else) has been sent
     uint32 _lastTeleportMs = 0;        // stage time of the last transfer issued
     std::unordered_map<uint32, uint32> _combatMs;  // member guid low -> ms in combat while monitored
+    std::unordered_map<uint32, int32> _lastManaPct; // member guid low -> last living mana %
     static constexpr uint32 TELEPORT_RETRY_MS = 10 * 1000;
     void PrepareForTeleport(Player* bot) const;
     uint32 _destInstanceId = 0;        // the copy the leader landed in; 0 until it does

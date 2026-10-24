@@ -1788,7 +1788,15 @@ void DcTestRunJob::TrackDeaths(Player* tank)
 
         bool const wasAlive = it->second;
         it->second = alive;
-        if (wasAlive == alive || alive)
+        if (alive)
+        {
+            // Power is zeroed on death: keep the last living reading.
+            if (member->GetMaxPower(POWER_MANA) > 0)
+                _lastManaPct[member->GetGUID().GetCounter()] =
+                    int32(member->GetPower(POWER_MANA) * 100 / member->GetMaxPower(POWER_MANA));
+            return;
+        }
+        if (wasAlive == alive)
             return;
 
         DcTestRunRecord::DeathEntry death;
@@ -1797,6 +1805,23 @@ void DcTestRunJob::TrackDeaths(Player* tank)
         death.opponent = _engaged.name;
         death.opponentEntry = _engaged.entry;
         death.onBoss = _engaged.isBoss;
+        for (Slot const& slot : _slots)
+        {
+            uint32 const low = slot.guid.GetCounter();
+            if (slot.guid == member->GetGUID())
+            {
+                death.role = slot.role;
+                if (auto m = _lastManaPct.find(low); m != _lastManaPct.end())
+                    death.manaPct = m->second;
+            }
+            else if (slot.role == "heal")
+            {
+                Player* healer = ObjectAccessor::FindPlayer(slot.guid);
+                death.healerAlive = healer && healer->IsAlive();
+                if (auto m = _lastManaPct.find(low); m != _lastManaPct.end())
+                    death.healerManaPct = m->second;
+            }
+        }
         _record.deaths.push_back(death);
         // Deliberately overwritten even when the latch is empty: this means
         // "what the LAST death was to", not "the last death that had a killer".
@@ -2701,6 +2726,7 @@ void DcTestRunJob::Teardown()
         DcTestRunStats::Counters const done = DcTestRunStats::Release(low);
         c.damageDone = done.damageDone;
         c.healingDone = done.healingDone;
+        c.damageTaken = done.damageTaken;
         c.combatS = _combatMs[low] / 1000;
     }
     _record.endedAtMs = NowUnixMs();

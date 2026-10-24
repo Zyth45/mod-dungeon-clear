@@ -143,6 +143,7 @@ namespace DcTestRunRecord
               << ",\"pvePower\":" << c.pvePower
               << ",\"damageDone\":" << c.damageDone
               << ",\"healingDone\":" << c.healingDone
+              << ",\"damageTaken\":" << c.damageTaken
               << ",\"combatS\":" << c.combatS << "}";
         }
         s << "],\"startedAtMs\":" << rec.startedAtMs
@@ -186,7 +187,12 @@ namespace DcTestRunRecord
             s << ",\"opponent\":";
             AppendEscaped(s, d.opponent);
             s << ",\"opponentEntry\":" << d.opponentEntry
-              << ",\"onBoss\":" << (d.onBoss ? "true" : "false") << '}';
+              << ",\"onBoss\":" << (d.onBoss ? "true" : "false")
+              << ",\"role\":";
+            AppendEscaped(s, d.role);
+            s << ",\"manaPct\":" << d.manaPct
+              << ",\"healerManaPct\":" << d.healerManaPct
+              << ",\"healerAlive\":" << (d.healerAlive ? "true" : "false") << '}';
         }
         s << "],\"pulls\":[";
         for (std::size_t i = 0; i < rec.pulls.size(); ++i)
