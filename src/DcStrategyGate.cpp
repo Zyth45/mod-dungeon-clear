@@ -9,6 +9,8 @@
 #include "Ai/Dungeon/DungeonClear/Util/DcLeaderSignal.h"
 #include "Group.h"
 
+#include <unordered_set>
+
 #include "Map.h"
 #include "ObjectAccessor.h"
 #include "ObjectGuid.h"
@@ -60,6 +62,33 @@ namespace
 
 namespace DcStrategyGate
 {
+    // One puller per group. Our CoA bots have their own between-fights pull
+    // ("coa auto pull", a non-combat strategy the player turns on for the main
+    // tank). With a clear running, the clear owns the pulls: both deciding made
+    // the tank pull twice (user test, Gnomeregan, 24/10). While the group's run
+    // is on, the strategy is taken off its bots, and put back on exactly those
+    // bots once the run is off. World thread only (the sweep), so the set
+    // needs no lock.
+    std::unordered_set<ObjectGuid> g_parkedAutoPull;
+
+    void ParkCoaAutoPull(Player* bot)
+    {
+        PlayerbotAI* botAI = bot ? GET_PLAYERBOT_AI(bot) : nullptr;
+        if (!botAI)
+            return;
+        Player* owner = bot->GetMap() && bot->GetMap()->IsDungeon() ? DcLeaderSignal::FindRunOwner(bot) : nullptr;
+        PlayerbotAI* ownerAI = owner ? GET_PLAYERBOT_AI(owner) : nullptr;
+        bool const running = ownerAI && DcRun::Of(ownerAI).enabled;
+
+        if (running && botAI->HasStrategy("coa auto pull", BOT_STATE_NON_COMBAT))
+        {
+            botAI->ChangeStrategy("-coa auto pull", BOT_STATE_NON_COMBAT);
+            g_parkedAutoPull.insert(bot->GetGUID());
+        }
+        else if (!running && g_parkedAutoPull.erase(bot->GetGUID()))
+            botAI->ChangeStrategy("+coa auto pull", BOT_STATE_NON_COMBAT);
+    }
+
     bool GroupUsesDungeonClear(Player* bot)
     {
         Group* group = bot->GetGroup();
@@ -182,6 +211,9 @@ namespace DcStrategyGate
         // the same thread that adds/removes players, so the container is stable
         // for the duration of the loop.
         for (auto const& kv : ObjectAccessor::GetPlayers())
+        {
             Reconcile(kv.second);
+            ParkCoaAutoPull(kv.second);
+        }
     }
 }
