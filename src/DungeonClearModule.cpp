@@ -68,6 +68,7 @@
 #include "AiObjectContextAccess.h"
 #include "DcModuleEnable.h"
 #include "DcStrategyGate.h"
+#include "Ai/Dungeon/DungeonClear/Util/DcBreathGuard.h"
 
 // Per-class context registries — each owns its own shared static lists.
 #include "DKAiObjectContext.h"
@@ -617,6 +618,7 @@ public:
         _gateSweepAccumMs += diff;
         if (_gateSweepAccumMs >= DC_STRATEGY_GATE_SWEEP_MS)
         {
+            DcBreathGuard::Tick(_gateSweepAccumMs);
             _gateSweepAccumMs = 0;
             DcStrategyGate::ReconcileAllBots();
         }

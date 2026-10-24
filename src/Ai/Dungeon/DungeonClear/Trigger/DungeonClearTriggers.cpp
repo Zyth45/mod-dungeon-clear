@@ -1156,6 +1156,9 @@ bool DungeonClearNeedsDrinkTrigger::IsActive()
     uint32 const target = RestTargetIfActive(bot, context, "RestManaPct");
     if (target == 0)
         return false;
+    // No sitting down to eat or drink under water: it is how the party drowned.
+    if (bot->IsUnderWater())
+        return false;
     // Non-mana classes (warriors/rogues) never drink.
     if (bot->GetMaxPower(POWER_MANA) == 0)
         return false;
@@ -1166,6 +1169,9 @@ bool DungeonClearNeedsEatTrigger::IsActive()
 {
     uint32 const target = RestTargetIfActive(bot, context, "RestHealthPct");
     if (target == 0)
+        return false;
+    // No sitting down to eat or drink under water: it is how the party drowned.
+    if (bot->IsUnderWater())
         return false;
     return bot->GetHealthPct() < static_cast<float>(target);
 }

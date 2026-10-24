@@ -3,6 +3,7 @@
  * and/or modify it under version 3 of the License, or (at your option), any later version.
  */
 
+#include "Ai/Dungeon/DungeonClear/Util/DcBreathGuard.h"
 #include "DcPartyState.h"
 
 #include "DcTickMemo.h"
@@ -198,6 +199,16 @@ DcPartyState::SpreadGate DcPartyState::GetSpreadGate(Player* bot, AiObjectContex
     SpreadGate gate{DcSettings::GetFloat(bot, "PartyMaxSpread"), nullptr};
     if (!context)
         return gate;
+
+    // NEVER HOLD A PARTY UNDER WATER. Waiting for a straggler (or resting)
+    // with anyone in the water drowned every Blackfathom Deeps run; with a
+    // member under water the gate does not hold, the tank keeps going and the
+    // breath guard (DcBreathGuard) brings up whoever stays down too long.
+    if (DcBreathGuard::AnyMemberUnderWater(bot))
+    {
+        gate.maxSpread = 1000.0f;
+        return gate;
+    }
 
     // A PARTY WITH A RIDER IN IT IS NOT MEASURED BY SPREAD. Distances between a
     // drake and a member on foot — or between two drakes on their lanes — say
