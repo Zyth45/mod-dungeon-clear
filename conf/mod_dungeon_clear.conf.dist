@@ -184,6 +184,18 @@ DungeonClear.BetterLootRolling = 0
 DungeonClear.IgnoreChests = 1
 
 #
+#    DungeonClear.EmergencyRez
+#        When a member is dead and nobody alive can resurrect it (or the rez
+#        timed out), wait for the fight to end, then revive the dead beside a
+#        living member and carry on instead of disabling the run. A full wipe
+#        still disables. A test-bench aid: off by default.
+#
+#        Default: 0
+#
+
+DungeonClear.EmergencyRez = 0
+
+#
 #    DungeonClear.DoorBlockedTimeout
 #        Seconds the tank may sit in the "Blocked by a door" state working one
 #        closed door (clicking it, or holding beside it) before it gives up and

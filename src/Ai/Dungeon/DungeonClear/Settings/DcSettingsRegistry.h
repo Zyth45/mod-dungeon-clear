@@ -120,6 +120,13 @@ inline constexpr DcSettingDef kDcSettings[] =
 
     { "IgnoreChests",          DcType::Bool,   1,   0,   1,  true  },
 
+    // Emergency rez. When a member is dead and no living member can resurrect
+    // it (or the rez timed out), wait for the fight to end, then revive the
+    // dead beside a living member and carry on, instead of disabling the run.
+    // A full wipe still disables. Off by default: it is a test-bench aid (the
+    // runs measure the dungeon, not the comp's rez coverage); server-only.
+    { "EmergencyRez",          DcType::Bool,   0,   0,   1,  false },
+
     // Seconds the tank may sit in the Blocked state working one closed door
     // (clicking it / holding beside it) before giving up and auto-pausing the
     // run, exactly as it does for a door it knows it can't open. Covers the

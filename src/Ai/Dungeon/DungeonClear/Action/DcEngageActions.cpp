@@ -2697,6 +2697,51 @@ bool DungeonClearDisableOnDeathAction::Execute(Event /*event*/)
         DcRezRecovery::RegroupAtEntrance(bot))
         return true;
 
+    if ((plan.verdict.reason == DcRezDecision::Reason::NoRezzer ||
+         plan.verdict.reason == DcRezDecision::Reason::TimedOut) &&
+        bot && DcSettings::GetBool(bot, "EmergencyRez"))
+    {
+        if (Group* group = bot->GetGroup())
+        {
+            Player* alive = nullptr;
+            bool fighting = false;
+            for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
+                if (Player* m = ref->GetSource(); m && m->IsInWorld() && m->IsAlive() &&
+                                                    m->GetMapId() == bot->GetMapId())
+                {
+                    fighting = fighting || m->IsInCombat();
+                    if (!alive)
+                        alive = m;
+                }
+            // A living member is needed to stand by; a fight still going keeps
+            // the dead down (a rez mid-pull would just feed the pack).
+            if (alive && fighting)
+                return true;
+            if (alive)
+            {
+                for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
+                {
+                    Player* m = ref->GetSource();
+                    if (!m || m->IsAlive() || !GET_PLAYERBOT_AI(m))
+                        continue;
+                    if (m->GetMapId() != alive->GetMapId())
+                        m->TeleportTo(alive->GetMapId(), alive->GetPositionX(), alive->GetPositionY(),
+                                      alive->GetPositionZ(), alive->GetOrientation());
+                    else
+                        m->NearTeleportTo(alive->GetPositionX(), alive->GetPositionY(),
+                                          alive->GetPositionZ(), alive->GetOrientation());
+                    m->RemoveAurasDueToSpell(27827);
+                    m->ResurrectPlayer(1.0f, /*applySickness*/ false);
+                    m->SpawnCorpseBones();
+                    LOG_INFO("playerbots.dungeonclear",
+                             "[DC:{}] emergency-rez: no one could resurrect {} - revived beside {} after the fight",
+                             bot->GetName(), m->GetName(), alive->GetName());
+                }
+                return true;
+            }
+        }
+    }
+
     std::string reason;
     switch (plan.verdict.reason)
     {
