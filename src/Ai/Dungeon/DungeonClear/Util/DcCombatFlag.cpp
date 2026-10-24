@@ -87,7 +87,12 @@ namespace DcCombatFlag
             return !other->GetCombatManager().IsInEvadeMode();
         };
 
-        if (inFight(p->GetVictim()))
+        // A victim only counts while the member is itself in combat: a bot out of
+        // combat can keep a stale victim (Ragefire, 24/10: "Waiting on Palastor
+        // Bot (out of range)" for 599 s, inCombat=false, victim a Ragefire
+        // Shaman), and reading it as a fight kept the straggler rescue from ever
+        // firing.
+        if (p->IsInCombat() && inFight(p->GetVictim()))
             return true;
 
         for (Unit const* const attacker : p->getAttackers())
