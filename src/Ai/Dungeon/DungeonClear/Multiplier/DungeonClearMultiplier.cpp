@@ -302,6 +302,12 @@ static bool ChaseWakesSleepingRoomBoss(Player* bot, AiObjectContext* context, Ac
         chaseEnd, DcEngageGeometry::RoomAggroSphereRadius(tank, boss), boss->IsInCombat());
 }
 
+namespace
+{
+    // Beyond this from the camp, a held follower is no longer kept from following.
+    constexpr float DC_CAMP_RELEASE_DISTANCE = 30.0f;
+}
+
 float DungeonClearMultiplier::GetValue(Action* action)
 {
     if (!action || !botAI || !bot)
@@ -417,7 +423,20 @@ float DungeonClearMultiplier::GetValue(Action* action)
         Position camp;
         bool passive = false;
         if (DcLeaderSignal::GetLeaderCampHold(bot, camp, passive))
+        {
+            // A follower that cannot get back to the camp is not held by it: its
+            // recall ran away (no path from where it stands) or it is simply far
+            // off. Between pulls (not while the tank is tagging), let it follow
+            // the tank instead of standing there (user test, Gnomeregan gantries,
+            // 24/10: "Follow fait rien", three bots frozen for minutes).
+            if (dynamic_cast<FollowAction*>(action) && !passive)
+            {
+                DcPullContext const& own = context->GetValue<DcPullContext&>(DcKey::PullContext)->Get();
+                if (own.campHoldRunaway || bot->GetExactDist(&camp) > DC_CAMP_RELEASE_DISTANCE)
+                    return 1.0f;
+            }
             return 0.0f;
+        }
     }
 
     // Stock group-target pickers while the camp hold is PASSIVE (the tank is
