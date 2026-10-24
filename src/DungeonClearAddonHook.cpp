@@ -235,8 +235,11 @@ public:
         // chat as text). See DcModuleEnable.h.
         if (!DcModule::IsEnabled())
         {
+            // Machine-readable first (SquidBots Lite hides its button on it),
+            // then the readable error older panels show.
+            SendAddonPayload(player, "DC	DISABLED");
             SendAddonError(player,
-                           "mod-dungeon-clear is disabled on this server "
+                           "Dungeon clear is disabled on this realm "
                            "(DungeonClear.Enable = 0).");
             return;
         }
@@ -259,6 +262,15 @@ public:
 
         if (subCmd.empty())
             return;
+
+        // Capability probe: answers with no group and no tank bot needed (the
+        // client may send it as a whisper to itself), so an addon can tell a
+        // realm that has the module enabled from one that has not.
+        if (subCmd == "hello")
+        {
+            SendAddonPayload(player, "DC	HELLO	1");
+            return;
+        }
 
         // Per-run settings overrides (set/reset/sync) are handled in-process
         // rather than dispatched as a tank-bot action.

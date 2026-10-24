@@ -6,6 +6,8 @@
 #include "DcStrategyGate.h"
 #include "DcModuleEnable.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcRun.h"
+#include "Ai/Dungeon/DungeonClear/Util/DcLeaderSignal.h"
+#include "Group.h"
 
 #include "Map.h"
 #include "ObjectAccessor.h"
@@ -58,6 +60,20 @@ namespace
 
 namespace DcStrategyGate
 {
+    bool GroupUsesDungeonClear(Player* bot)
+    {
+        Group* group = bot->GetGroup();
+        if (!group)
+            return false;
+        for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
+            if (Player* member = ref->GetSource();
+                member && member->IsInWorld() && !GET_PLAYERBOT_AI(member))
+                return true;
+        Player* owner = DcLeaderSignal::FindRunOwner(bot);
+        PlayerbotAI* ownerAI = owner ? GET_PLAYERBOT_AI(owner) : nullptr;
+        return ownerAI && DcRun::Of(ownerAI).enabled;
+    }
+
     void Reconcile(Player* bot)
     {
         // Master switch. With the module disabled nothing was ever registered
@@ -75,7 +91,11 @@ namespace DcStrategyGate
             return;  // real player (no bot AI) — nothing to gate
 
         Map* map = bot->GetMap();
-        bool const inDungeon = map && map->IsDungeon();
+        // Player option, not a realm-wide behaviour: only a group that can use a
+        // clear carries the strategies. That is a group with a real player in it
+        // (it must hear "dc on"), or one whose run has been started (`.dc on`,
+        // test runs). All-bot groups in instances (LFG, RPG) never get them.
+        bool const inDungeon = map && map->IsDungeon() && GroupUsesDungeonClear(bot);
 
         bool const hasNon = botAI->HasStrategy(kNonCombat, BOT_STATE_NON_COMBAT);
         bool const hasCmb = botAI->HasStrategy(kCombat, BOT_STATE_COMBAT);
