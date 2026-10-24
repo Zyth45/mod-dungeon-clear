@@ -409,6 +409,11 @@ namespace DcEventDoorRegistry
             case 184393:  // Old Hillsbrad — Thrall's Prison Door (gossip through
                           // the gate; his script opens it via EVENT_OPEN_DOORS)
                 return true;
+            // Uldaman — the Keystone is a pedestal wearing a door template (type 0,
+            // lock 359). It never closes a corridor; the Ironaya event uses it.
+            // Flagged as a blocker it paused runs at the antechamber (NUC, 24/10).
+            case 124371:  // Uldaman — Keystone
+                return true;
             // Shadowfang Keep — the prison Cell Doors beside Rethilgore's hall.
             // The route to him runs past them, and a shut cell read as the
             // corridor's blocker; the prisoners' levers open them (event 1/2).
