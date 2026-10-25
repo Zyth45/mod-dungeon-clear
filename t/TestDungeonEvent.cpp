@@ -379,20 +379,23 @@ TEST(DungeonEventRegistryTest, SunkenTempleStatueClicks)
 // Weaver & Dreamscythe (10), and Atal'alarion (11) events.
 TEST(DungeonEventRegistryTest, SunkenTempleIdolAvatarAndReorderedBosses)
 {
-    // Event 8 — Awaken the Soulflayer (optional pit-wing beat 1). The encounter
-    // starts only by USING the Egg of Hakkar (10465) at the Sanctum centre — the
-    // idol click is a QUESTGIVER no-op and a bare spell cast is rejected. The egg
-    // summon FAILS unless used from dead centre and the objective arrive radius
-    // lets boss-nav park the tank short, so a tight MoveTo precedes the UseItem to
-    // walk the tank precisely to centre first (egg-positioning fix 2026-06-15).
+    // Event 8 — Awaken the Soulflayer (optional pit-wing beat 1). One hook (68)
+    // starts the encounter (the CoA 2.8 Hakkar Worship Altar, else the Egg of
+    // Hakkar from dead centre) and retries until the instance reads it started.
+    // The MoveTo(3yd) + one-shot UseItem pair it replaced timed out on the
+    // approach inside the default 30s and skipped the event before the egg was
+    // ever used; on the 2.8 core the Shade of Eranikus then stayed untargetable
+    // and killed the party (tr-20261025-161455-156, -145609-105, -141955-80).
     DungeonEvent const* idol = DungeonEventRegistry::Find(109, 8);
     ASSERT_NE(idol, nullptr);
     EXPECT_EQ(idol->activation, EventActivation::Anchored);
     EXPECT_FALSE(idol->required);
-    ASSERT_EQ(idol->steps.size(), 2u);
-    EXPECT_EQ(idol->steps[0].kind, EventStepKind::MoveTo);
-    EXPECT_EQ(idol->steps[1].kind, EventStepKind::UseItem);
-    EXPECT_EQ(idol->steps[1].itemId, 10465u);
+    ASSERT_EQ(idol->steps.size(), 1u);
+    EXPECT_EQ(idol->steps[0].kind, EventStepKind::Custom);
+    EXPECT_EQ(idol->steps[0].hookId, 68u);
+    EXPECT_TRUE(ObjectiveHookRegistry::Has(idol->steps[0].hookId));
+    EXPECT_GE(idol->steps[0].timeoutMs, 60000u);  // walk + retries, not the 30s default
+    EXPECT_TRUE(idol->stepsOwnMovement);          // the hook walks the tank itself
 
     // Event 9 — the Avatar fight: Persistent + Optional. The summon cast spawns
     // the Shade of Hakkar, which transforms into the Avatar (8443) ON ITS OWN

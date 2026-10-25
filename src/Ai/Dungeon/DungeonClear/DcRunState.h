@@ -203,6 +203,12 @@ struct DcRunState
     uint32 musterRebuffIssuedMs = 0;  // getMSTime() the rebuff round was issued
     bool   musterRestOverride = false;
 
+    // === Sunken Temple — back to the Avatar before the Shade (leader-owned) =======
+    // How many times the muster before the Shade of Eranikus found him still
+    // slumbering with the Avatar of Hakkar alive and sent the party back to the
+    // Sanctum (SunkenTempleEvents.cpp, HoldSlumberingShade). Bounds that loop.
+    uint8  stAvatarRetries = 0;
+
     // === the run's no-progress clocks (leader-owned) ==============================
     // Two failsafes ask "has this run stopped moving?" and both read the same
     // three signals (DcRunProgress: an encounter completed, an anchor cleared,

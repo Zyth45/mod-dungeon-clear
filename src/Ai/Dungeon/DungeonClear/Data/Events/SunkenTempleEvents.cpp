@@ -6,19 +6,28 @@
 #include "Ai/Dungeon/DungeonClear/Data/Events/DungeonEventTables.h"
 #include "Ai/Dungeon/DungeonClear/Data/Events/DungeonRosterBuilders.h"
 
+#include <cmath>
 #include <string>
+#include <unordered_set>
 
 #include "Creature.h"
+#include "GameObject.h"
 #include "Group.h"
+#include "InstanceScript.h"
+#include "Item.h"
 #include "Log.h"
+#include "MotionMaster.h"
 #include "Player.h"
 #include "Playerbots.h"
+#include "Spell.h"
 #include "Timer.h"
 #include "Ai/Dungeon/DungeonClear/Data/DungeonBossInfo.h"
 #include "Ai/Dungeon/DungeonClear/DcValueKeys.h"
 #include "Ai/Dungeon/DungeonClear/Overrides/ObjectiveHookRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Settings/DcSettings.h"
+#include "Ai/Dungeon/DungeonClear/Util/DcFormGate.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcRun.h"
+#include "Ai/Dungeon/DungeonClear/Util/DcTargeting.h"
 #include "Ai/Dungeon/DungeonClear/Util/DungeonEventExecutor.h"
 
 // --- Sunken Temple / Temple of Atal'Hakkar (map 109) ----------------------
@@ -233,6 +242,44 @@ namespace
     constexpr float ST_NORTH_SEARCH = 80.0f;
     // Generous wait for the Avatar to manifest once the flames are doused.
     constexpr uint32 ST_AVATAR_SPAWN_WAIT = 150000;
+
+    // Awakening the Soulflayer (hook 68, event 8). The one-shot MoveTo(3yd) +
+    // UseItem pair it replaces reported Done without ever checking the encounter
+    // had started, and when the 3yd approach did not land inside the default 30s
+    // step timeout the Optional event was skipped before the egg was used at
+    // all: no "event-step UseItem 10465" line for the tank, no wave, the Avatar
+    // wait ran out 150s later, and on the CoA 2.8 core the Shade of Eranikus
+    // then stayed NOT_SELECTABLE and killed the party (tr-20261025-161455-156,
+    // -145609-105, -141955-80, PC -180819-23: 19/23, the Avatar's encounter bit
+    // never set). The hook holds until the instance reads the Hakkar event
+    // started (instance_sunken_temple TYPE_HAKKAR_EVENT, slot 2) and retries the
+    // trigger until it does.
+    //
+    // The 2.8 core adds the Hakkar Worship Altar (GO 2310500, 7.8yd west of the
+    // centre), whose gossip starts the same encounter without the egg; its
+    // summon spot is fixed, so where the altar is used from does not matter.
+    // The stock script has no altar and needs the egg used from the centre.
+    constexpr uint32 HOOK_ST_AWAKEN_SOULFLAYER = 68;
+    constexpr uint32 ST_TYPE_HAKKAR_EVENT = 2;
+    constexpr uint32 ST_WORSHIP_ALTAR = 2310500;
+    constexpr uint32 ST_SHADE_OF_HAKKAR = 8440;
+    constexpr float ST_ALTAR_REACH = 5.0f;
+    // Past this on the step, trigger from where the tank stands: the altar from
+    // anywhere in the room (GameObject::Use has no range check of its own), the
+    // egg after a near-teleport to the centre, which is what it needs.
+    constexpr uint32 ST_AWAKEN_WALK_MS = 20000;
+    constexpr float ST_AWAKEN_FORCE_RANGE = 40.0f;
+    // One trigger per this many ms on the step, so a refused use is retried
+    // without spamming.
+    constexpr uint32 ST_AWAKEN_RETRY_MS = 4000;
+    constexpr uint32 ST_AWAKEN_TIMEOUT = 90000;
+
+    // DungeonEncounter.dbc bit the Avatar of Hakkar's kill sets ("encounter #7"
+    // in every run record that killed him). Read by the muster before the Shade.
+    constexpr uint32 ST_AVATAR_ENCOUNTER_BIT = 7;
+    // How many times the muster sends the party back to the Sanctum when the
+    // Shade still slumbers because the Avatar is not dead.
+    constexpr uint8 ST_AVATAR_RETRIES = 2;
 }
 
 namespace
@@ -276,6 +323,150 @@ namespace
         run.musterRestOverride = false;
     }
 
+    // The Shade of Eranikus still slumbers (CoA 2.8 core: NOT_SELECTABLE until
+    // the Avatar, Jammal'an and Ogom, Dreamscythe and Weaver, Hazzas and Morphaz
+    // are dead). Pulling him then is a wipe: he hits the tank, nobody can hit
+    // him. If the Avatar is what is missing, reopen the two Sanctum anchors and
+    // send the party back there (at most ST_AVATAR_RETRIES times); otherwise, or
+    // once the retries are spent, stall rather than pull.
+    ObjectiveArriveResult HoldSlumberingShade(Player* bot, AiObjectContext* context, DcRunState& run)
+    {
+        RetractMusterRest(bot, run);
+
+        InstanceScript* inst = DcTargeting::GetInstanceScript(bot);
+        uint32 const mask = inst ? inst->GetCompletedEncounterMask() : 0u;
+        uint32 const hakkar = inst ? inst->GetData(ST_TYPE_HAKKAR_EVENT) : 0u;
+        bool const avatarDead = (mask & (1u << ST_AVATAR_ENCOUNTER_BIT)) != 0;
+
+        if (!avatarDead && run.stAvatarRetries < ST_AVATAR_RETRIES)
+        {
+            ++run.stAvatarRetries;
+            auto& cleared =
+                context->GetValue<std::unordered_set<uint32>&>(DcKey::ClearedAnchors)->Get();
+            cleared.erase(DcRoster::OBJ(9));
+            cleared.erase(DcRoster::OBJ(10));
+            run.selectedBossEntry = DcRoster::OBJ(9);
+            LOG_WARN("playerbots.dungeonclear",
+                     "[DC:{}] Shade of Eranikus still slumbers and the Avatar of Hakkar is not "
+                     "dead (mask=0x{:x}, Hakkar event {}) -> back to the Sanctum to awaken the "
+                     "Soulflayer (retry {}/{})",
+                     bot->GetName(), mask, hakkar, run.stAvatarRetries, ST_AVATAR_RETRIES);
+            return ObjectiveArriveResult::Running;
+        }
+
+        LOG_WARN("playerbots.dungeonclear",
+                 "[DC:{}] Shade of Eranikus still slumbers (mask=0x{:x}, Avatar dead {}, Hakkar "
+                 "event {}, retries {}) -> not pulling a boss nobody can hit",
+                 bot->GetName(), mask, avatarDead, hakkar, run.stAvatarRetries);
+        return ObjectiveArriveResult::Blocked;
+    }
+
+    // Hook 68: start the Avatar of Hakkar encounter and confirm it started (see
+    // HOOK_ST_AWAKEN_SOULFLAYER above).
+    ObjectiveArriveResult AwakenSoulflayer(Player* bot, AiObjectContext* context,
+                                           DungeonBossInfo const& /*info*/)
+    {
+        InstanceScript* inst = DcTargeting::GetInstanceScript(bot);
+        uint32 const hakkar = inst ? inst->GetData(ST_TYPE_HAKKAR_EVENT) : 0u;
+        if (hakkar != NOT_STARTED ||
+            bot->FindNearestCreature(ST_SHADE_OF_HAKKAR, ST_NORTH_SEARCH, /*alive*/ true) ||
+            bot->FindNearestCreature(ST_AVATAR, ST_NORTH_SEARCH, /*alive*/ true) ||
+            bot->FindNearestCreature(ST_AVATAR, ST_NORTH_SEARCH, /*alive*/ false))
+        {
+            LOG_INFO("playerbots.dungeonclear",
+                     "[DC:{}] Awaken the Soulflayer: encounter started (Hakkar event {})",
+                     bot->GetName(), hakkar);
+            return ObjectiveArriveResult::Done;
+        }
+
+        DungeonEventProgress& prog =
+            context->GetValue<DungeonEventProgress&>(DcKey::EventProgress)->Get();
+        uint32 const elapsed = getMSTimeDiff(prog.stepStartMs, getMSTime());
+        bool const late = elapsed >= ST_AWAKEN_WALK_MS;
+
+        GameObject* altar = bot->FindNearestGameObject(ST_WORSHIP_ALTAR, ST_NORTH_SEARCH);
+        if (altar && altar->HasGameObjectFlag(GO_FLAG_NOT_SELECTABLE))
+            altar = nullptr;
+
+        bool inPlace = false;
+        if (altar)
+        {
+            float const d = bot->GetExactDist2d(altar);
+            inPlace = d <= ST_ALTAR_REACH || (late && d <= ST_AWAKEN_FORCE_RANGE);
+            if (!inPlace)
+            {
+                // Halfway between the altar and the centre: on the floor the tanks
+                // already reach, inside the altar's reach.
+                float const x = (altar->GetPositionX() + ST_SANCTUM_CX) * 0.5f;
+                float const y = (altar->GetPositionY() + ST_SANCTUM_CY) * 0.5f;
+                if (!bot->isMoving())
+                    bot->GetMotionMaster()->MovePoint(0, x, y, ST_SANCTUM_CZ,
+                                                      FORCED_MOVEMENT_NONE, 0.0f, 0.0f,
+                                                      /*generatePath*/ true, false);
+                return ObjectiveArriveResult::Running;
+            }
+        }
+        else
+        {
+            inPlace = bot->GetExactDist2d(ST_SANCTUM_CX, ST_SANCTUM_CY) <= ST_SANCTUM_CENTRE_RADIUS &&
+                      std::fabs(bot->GetPositionZ() - ST_SANCTUM_CZ) <= ST_SANCTUM_CENTRE_RADIUS;
+            if (!inPlace)
+            {
+                if (late)
+                {
+                    LOG_WARN("playerbots.dungeonclear",
+                             "[DC:{}] Awaken the Soulflayer: {}s without reaching the Sanctum "
+                             "centre ({:.1f}yd off) -> near-teleport onto it",
+                             bot->GetName(), elapsed / IN_MILLISECONDS,
+                             bot->GetExactDist2d(ST_SANCTUM_CX, ST_SANCTUM_CY));
+                    bot->NearTeleportTo(ST_SANCTUM_CX, ST_SANCTUM_CY, ST_SANCTUM_CZ,
+                                        bot->GetOrientation());
+                }
+                else if (!bot->isMoving())
+                    bot->GetMotionMaster()->MovePoint(0, ST_SANCTUM_CX, ST_SANCTUM_CY,
+                                                      ST_SANCTUM_CZ, FORCED_MOVEMENT_NONE, 0.0f,
+                                                      0.0f, /*generatePath*/ true, false);
+                return ObjectiveArriveResult::Running;
+            }
+        }
+
+        // In place: one trigger per ST_AWAKEN_RETRY_MS, confirmed next tick by the
+        // instance data read above.
+        if (elapsed < prog.attempts * ST_AWAKEN_RETRY_MS)
+            return ObjectiveArriveResult::Running;
+        ++prog.attempts;
+        if (bot->isMoving())
+            bot->StopMoving();
+
+        if (altar)
+        {
+            LOG_INFO("playerbots.dungeonclear",
+                     "[DC:{}] Awaken the Soulflayer: using the Hakkar Worship Altar at {:.1f}yd "
+                     "(attempt {}, Hakkar event {})",
+                     bot->GetName(), bot->GetExactDist2d(altar), prog.attempts, hakkar);
+            altar->Use(bot);
+            return ObjectiveArriveResult::Running;
+        }
+
+        Item* egg = bot->GetItemByEntry(ST_EGG_OF_HAKKAR);
+        if (!egg)
+        {
+            bot->AddItem(ST_EGG_OF_HAKKAR, 1);
+            egg = bot->GetItemByEntry(ST_EGG_OF_HAKKAR);
+            if (!egg)
+                return ObjectiveArriveResult::Running;  // bags full this tick — retry
+        }
+        LOG_INFO("playerbots.dungeonclear",
+                 "[DC:{}] Awaken the Soulflayer: using the Egg of Hakkar at the centre "
+                 "(attempt {}, Hakkar event {})",
+                 bot->GetName(), prog.attempts, hakkar);
+        DcFormGate::DropBlockingForm(bot, egg);
+        SpellCastTargets targets;
+        targets.SetUnitTarget(bot);
+        bot->CastItemUseSpell(egg, targets, 0, 0);
+        return ObjectiveArriveResult::Running;
+    }
+
     ObjectiveArriveResult MusterBeforeEranikus(Player* bot, AiObjectContext* context,
                                                DungeonBossInfo const& /*info*/)
     {
@@ -288,6 +479,9 @@ namespace
             RetractMusterRest(bot, run);
             return ObjectiveArriveResult::Done;
         }
+
+        if (shade->HasUnitFlag(UNIT_FLAG_NOT_SELECTABLE))
+            return HoldSlumberingShade(bot, context, run);
 
         Group* group = bot->GetGroup();
         if (!group)
@@ -361,6 +555,7 @@ namespace
 void RegisterSunkenTempleHooks(ObjectiveHookRegistry::HookTable& out)
 {
     ObjectiveHookRegistry::AddHook(out, HOOK_ST_ERANIKUS_MUSTER, &MusterBeforeEranikus);
+    ObjectiveHookRegistry::AddHook(out, HOOK_ST_AWAKEN_SOULFLAYER, &AwakenSoulflayer);
 }
 
 void RegisterSunkenTempleEvents(std::vector<DungeonEvent>& out)
@@ -445,11 +640,17 @@ void RegisterSunkenTempleEvents(std::vector<DungeonEvent>& out)
     // radius (8yd) lets boss-nav park the tank short of it — so a tight MoveTo
     // walks the tank precisely to the centre BEFORE the egg fires (live bug
     // 2026-06-15: tank stopped short of centre, summon failed, run deadlocked).
+    // Hook 68 now owns the whole beat: the altar on the CoA 2.8 core, the egg
+    // from dead centre on the stock script, retried until the instance reads the
+    // encounter started (see HOOK_ST_AWAKEN_SOULFLAYER). It walks the tank
+    // itself, hence StepsOwnMovement.
     out.push_back(EventBuilder(109, 8, "Awaken the Soulflayer (Egg of Hakkar)")
                       .Anchored(17)
-                      .MoveTo(ST_SANCTUM_CX, ST_SANCTUM_CY, ST_SANCTUM_CZ,
-                              ST_SANCTUM_CENTRE_RADIUS)
-                      .UseItem(ST_EGG_OF_HAKKAR).Optional().Build());
+                      .StepsOwnMovement()
+                      .Optional()
+                      .Custom(HOOK_ST_AWAKEN_SOULFLAYER)
+                      .Timeout(ST_AWAKEN_TIMEOUT)
+                      .Build());
 
     // --- Event 9: GATE 3 beat 2 — the Avatar of Hakkar fight ---------------
     // Anchored at the Sanctum centre, Optional + Persistent. The Avatar (8443)
