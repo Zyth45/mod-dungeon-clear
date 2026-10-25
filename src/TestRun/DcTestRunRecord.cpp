@@ -144,6 +144,7 @@ namespace DcTestRunRecord
               << ",\"damageDone\":" << c.damageDone
               << ",\"healingDone\":" << c.healingDone
               << ",\"damageTaken\":" << c.damageTaken
+              << ",\"absorbDone\":" << c.absorbDone
               << ",\"combatS\":" << c.combatS << "}";
         }
         s << "],\"startedAtMs\":" << rec.startedAtMs

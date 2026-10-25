@@ -2769,6 +2769,7 @@ void DcTestRunJob::Teardown()
         c.damageDone = done.damageDone;
         c.healingDone = done.healingDone;
         c.damageTaken = done.damageTaken;
+        c.absorbDone = done.absorbDone;
         c.combatS = _combatMs[low] / 1000;
     }
     _record.endedAtMs = NowUnixMs();

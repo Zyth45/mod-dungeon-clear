@@ -2,6 +2,8 @@
 
 #include "Player.h"
 #include "ScriptMgr.h"
+#include "SpellAuraEffects.h"
+#include "SpellAuras.h"
 #include "Unit.h"
 #include "UnitScript.h"
 
@@ -13,6 +15,38 @@ namespace
 {
     std::mutex g_mutex;
     std::unordered_map<uint32, DcTestRunStats::Counters> g_tracked;
+
+    // Absorb shields cast by a tracked member: the core has no absorb hook, so
+    // the soaked part is read off the shield's amount, which the core lowers as
+    // it absorbs. Settled when the shield is recalculated (a refresh) or goes.
+    // The amount hook runs before the core's last scaling (CoA absorb mods,
+    // stacks), so the full amount is read when the shield lands and that scale
+    // is kept for its refreshes.
+    struct Shield
+    {
+        uint32 caster;
+        uint32 spellId;
+        int32 amount;
+        int32 calculated;
+        float scale = 1.0f;
+    };
+    std::unordered_map<AuraEffect const*, Shield> g_shields;
+
+    void SettleShield(AuraEffect const* effect, bool forget)
+    {
+        auto itr = g_shields.find(effect);
+        if (itr == g_shields.end())
+            return;
+        if (itr->second.spellId == effect->GetId())
+        {
+            int32 const soaked = itr->second.amount - std::max(effect->GetAmount(), 0);
+            if (soaked > 0)
+                if (auto member = g_tracked.find(itr->second.caster); member != g_tracked.end())
+                    member->second.absorbDone += uint32(soaked);
+        }
+        if (forget)
+            g_shields.erase(itr);
+    }
 
     // A pet's or a totem's hits belong to the character that owns it.
     uint32 OwnerGuidLow(Unit* unit)
@@ -40,6 +74,8 @@ namespace DcTestRunStats
             return {};
         Counters const out = itr->second;
         g_tracked.erase(itr);
+        for (auto shield = g_shields.begin(); shield != g_shields.end();)
+            shield = shield->second.caster == guidLow ? g_shields.erase(shield) : std::next(shield);
         return out;
     }
 }
@@ -47,7 +83,8 @@ namespace DcTestRunStats
 class DcTestRunStatsScript : public UnitScript
 {
 public:
-    DcTestRunStatsScript() : UnitScript("DcTestRunStatsScript", true, { UNITHOOK_ON_DAMAGE, UNITHOOK_ON_HEAL }) { }
+    DcTestRunStatsScript() : UnitScript("DcTestRunStatsScript", true, { UNITHOOK_ON_DAMAGE, UNITHOOK_ON_HEAL,
+        UNITHOOK_ON_AFTER_AURA_EFFECT_CALCULATE_AMOUNT, UNITHOOK_ON_AURA_APPLY, UNITHOOK_ON_AURA_REMOVE }) { }
 
     void OnDamage(Unit* attacker, Unit* victim, uint32& damage) override
     {
@@ -83,6 +120,53 @@ public:
         std::lock_guard<std::mutex> lock(g_mutex);
         if (auto itr = g_tracked.find(guid); itr != g_tracked.end())
             itr->second.healingDone += std::min(gain, missing);
+    }
+
+    void OnAfterAuraEffectCalculateAmount(AuraEffect const* effect, Unit* caster, int32& amount) override
+    {
+        if (!effect || effect->GetAuraType() != SPELL_AURA_SCHOOL_ABSORB || amount <= 0)
+            return;
+        uint32 const guid = OwnerGuidLow(caster);
+        if (!guid)
+            return;
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (g_tracked.find(guid) == g_tracked.end())
+            return;
+        float scale = 1.0f;
+        if (auto itr = g_shields.find(effect); itr != g_shields.end() && itr->second.spellId == effect->GetId())
+            scale = itr->second.scale;
+        SettleShield(effect, true);
+        g_shields[effect] = Shield{ guid, effect->GetId(), int32(float(amount) * scale), amount, scale };
+    }
+
+    void OnAuraApply(Unit* /*unit*/, Aura* aura) override
+    {
+        if (!aura || !aura->HasEffectType(SPELL_AURA_SCHOOL_ABSORB))
+            return;
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (g_shields.empty())
+            return;
+        for (uint8 i = 0; i < MAX_SPELL_EFFECTS; ++i)
+            if (AuraEffect const* effect = aura->GetEffect(i))
+                if (auto itr = g_shields.find(effect); itr != g_shields.end() && itr->second.spellId == effect->GetId() &&
+                    itr->second.calculated > 0 && effect->GetAmount() > 0)
+                {
+                    itr->second.amount = effect->GetAmount();
+                    itr->second.scale = float(effect->GetAmount()) / float(itr->second.calculated);
+                }
+    }
+
+    void OnAuraRemove(Unit* /*unit*/, AuraApplication* aurApp, AuraRemoveMode /*mode*/) override
+    {
+        Aura const* aura = aurApp ? aurApp->GetBase() : nullptr;
+        if (!aura || !aura->HasEffectType(SPELL_AURA_SCHOOL_ABSORB))
+            return;
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (g_shields.empty())
+            return;
+        for (uint8 i = 0; i < MAX_SPELL_EFFECTS; ++i)
+            if (AuraEffect const* effect = aura->GetEffect(i))
+                SettleShield(effect, true);
     }
 };
 

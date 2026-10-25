@@ -54,6 +54,7 @@ namespace DcTestRunRecord
         std::uint64_t damageDone = 0;
         std::uint64_t healingDone = 0;
         std::uint64_t damageTaken = 0;
+        std::uint64_t absorbDone = 0;
         std::uint32_t combatS = 0;
     };
 
