@@ -64,14 +64,15 @@
 //   Spewer 10416 / Venom Belcher 10417 — trash, not bosses). Killing them all
 //   summons Ramstein the Gorger (10439); Ramstein's death spawns 33 Mindless
 //   Undead (11030, wave 1); clearing those spawns 5 Black Guards (10394, wave 2,
-//   ~20s later); clearing those opens the door to Baron Rivendare (10440). The
-//   Mindless charge the party, but the Black Guards walk to fixed posts and idle
-//   (they only aggro by proximity), so wave 2 uses KillCreatureEngage to actively
-//   SEEK and engage them — otherwise a wave-1 fight that drifted the party off down
-//   the hall leaves the guards standing unaggroed and the Baron door never opens (a
-//   centre ClearRadius can't see them and a MoveTo hold can't haul the tank back the
-//   length of the hall). This whole chain is ONE
-//   persistent anchored event (eventId 4) tied to a Slaughter-Square
+//   ~20s later). The Mindless charge the party. The 5 Black Guards spawn behind
+//   Ziggurat Door 04 (175405, the north door of the hall) and the instance opens
+//   that door the moment they spawn (EVENT_SPAWN_BLACK_GUARD): it is THE door
+//   between the hall and the Baron. The Baron door proper (175796, doors5) gates
+//   nothing on this core: Baron Rivendare's SmartAI sets it open on Reset (spawn)
+//   and only shuts it while he is in combat, so it already reads open when the
+//   party reaches the hall. The guards walk to posts in the hall (on the Baron
+//   path) and are fought there as trash. This whole chain is ONE persistent
+//   anchored event (eventId 4) tied to a Slaughter-Square
 //   objective anchor (BossRosterRegistry OBJ(1), ordered at key 12 so the tank
 //   arrives after the ziggurats + Barthilas and before Baron). Persistent so
 //   the many separate fights (each a >1s combat tick-gap that would otherwise
@@ -90,8 +91,17 @@
 // STALL, not a skip. Five of five soak failures (sk-20261003-174711) sat on
 // exactly that step for 236s with the party idle and the Black Guards already
 // up or dead. So the wave-1 gate reads the side gate (opens the instant
-// Ramstein dies, never closes), and the whole event completes the moment the
-// Baron door reads open (CompleteWhenGOState), whichever step it is on.
+// Ramstein dies, never closes), the wave-2 gate reads Ziggurat Door 04 (opens
+// the instant the guards spawn, never closes), and the whole event completes
+// the moment that door reads open (CompleteWhenGOState), whichever step it is on.
+//
+// It used to complete on the Baron door (175796). Baron's SmartAI opens that
+// door on Reset, so on the NUC runs of 25/10 the event latched at step 0 on
+// arrival ("completed at step 0: GO 175796 reads state 0", e.g.
+// tr-20261025-092526-749) and the tank headed for the Baron with the
+// abominations, Ramstein and both waves still pending, into the still-shut
+// Ziggurat Door 04: "a closed door is blocking the path", auto-pause, and a
+// stall whenever the hall chain did not finish on its own.
 
 namespace
 {
@@ -160,7 +170,6 @@ namespace
     constexpr uint32 STR_VENOM_BELCHER = 10417;  // pre-spawned abomination
     constexpr uint32 STR_RAMSTEIN = 10439;     // summoned once the abominations die
     constexpr uint32 STR_MINDLESS = 11030;     // wave 1 (33x mindless undead; documentary)
-    constexpr uint32 STR_BLACK_GUARD = 10394;  // wave 2 (5x black guard)
     // Active-seek radius for the abomination / Ramstein mop-up (issue #5). The
     // 13 abominations span ~68yd around the hall centre; the seek must cover the
     // whole hall from wherever the tank ended up mid-clear.
@@ -171,12 +180,14 @@ namespace
     // they are the bulletproof phase signal that survives the long continuous
     // combat (the event engine is dormant in combat) and bridges the multi-second
     // inter-wave lulls that would otherwise let a creature gate complete early.
-    constexpr uint32 STR_GO_BARON_DOOR = 175796;   // opens when the 5 guards die
+    // NOT the Baron door 175796: Baron's SmartAI opens it on Reset (see header).
     constexpr uint32 STR_GO_SIDE_GATE = 175358;    // opens when Ramstein dies (wave 1)
+    constexpr uint32 STR_GO_HALL_DOOR = 175405;    // Ziggurat Door 04: opens as the guards spawn
     constexpr uint32 STR_GO_OPEN = 0;              // GO_STATE_ACTIVE (open)
-    // The Baron door sits ~51yd north of the hall centre and the side gate
-    // (3960.6,-3392.9) ~75yd west of it; the default GO search is only 20yd, so
-    // the waits need an explicit reach that finds them from anywhere in the hall.
+    // Ziggurat Door 04 (4032.9,-3388.8) sits ~26yd north of the hall centre and
+    // the side gate (3960.6,-3392.9) ~75yd west of it; the default GO search is
+    // only 20yd, so the waits need an explicit reach that finds them from
+    // anywhere in the hall.
     constexpr float STR_DOOR_SEARCH = 120.0f;
 
     // Slaughterhouse-hall centre. NOT the old SlaughterPos (4032,-3378): that sits
@@ -394,7 +405,7 @@ void RegisterStratholmeEvents(std::vector<DungeonEvent>& out)
     out.push_back(EventBuilder(329, 4, "Slaughterhouse (Baron run)")
                       .Anchored(11)
                       .Persistent()
-                      .CompleteWhenGOState(STR_GO_BARON_DOOR, STR_GO_OPEN, STR_DOOR_SEARCH)
+                      .CompleteWhenGOState(STR_GO_HALL_DOOR, STR_GO_OPEN, STR_DOOR_SEARCH)
                       // 1. Clear the hall of the pre-spawned abominations (13x Bile
                       //    Spewer 10416 / Venom Belcher 10417). Ramstein is summoned
                       //    ONLY when EVERY abomination dies, so a single one left alive
@@ -437,32 +448,19 @@ void RegisterStratholmeEvents(std::vector<DungeonEvent>& out)
                       .ClearRadius(STR_SLAUGHTER_X, STR_SLAUGHTER_Y, STR_SLAUGHTER_Z,
                                    STR_SLAUGHTER_RADIUS, STR_SLAUGHTER_ZBAND)
                           .Timeout(STR_PHASE_TIMEOUT)
-                      // 3. Wave 2: ~20s after the undead die, 5 Black Guards (10394)
-                      //    spawn at the north door, WALK to fixed posts ~8yd north of
-                      //    the hall centre, then idle there (SetHomePosition). Unlike the
-                      //    charging Mindless they never seek the party — they only aggro
-                      //    by proximity, and their deaths are what open the Baron door.
-                      //    If the wave-1 fight dragged the party off down the hall, the
-                      //    guards reach their posts and stand there unaggroed and the run
-                      //    wedges. A point-anchored ClearRadius can't recover this: its
-                      //    engage scan is bot-centred (so far-off guards are invisible)
-                      //    and a MoveTo hold can't haul the tank the length of the hall
-                      //    (intra-room hop only — it just sat off-position till timeout).
-                      //    So WaitForSpawn first (the kill gate can't false-complete
-                      //    before they appear), then KillCreatureEngage: the engage
-                      //    pipeline (EngageDirect, long-range walk-in) actively SEEKS the
-                      //    guards wherever the party ended up and fights through all five.
-                      //    Same mechanism ZulFarrak uses to walk the tank to its bosses.
-                      .WaitForSpawn(STR_BLACK_GUARD, /*alive*/ true)
-                          .Timeout(STR_WAVE_GAP_TIMEOUT)
-                      .KillCreatureEngage(STR_BLACK_GUARD, /*count*/ 1, /*searchRadius*/ 250.0f)
-                          .Timeout(STR_PHASE_TIMEOUT)
-                      // 4. The guards' death opens the Baron door (175796). Gate on
-                      //    that monotonic, combat-gap-proof signal — the authoritative
-                      //    "slaughterhouse done" — not a transient creature check.
-                      //    Baron (DBC bit 12) is then a normal boss anchor.
-                      .WaitForGOState(STR_GO_BARON_DOOR, STR_GO_OPEN,
-                                      /*timeoutMs*/ STR_WAVE_GAP_TIMEOUT,
+                      // 3. Wave 2: ~20s after the last undead dies, the instance
+                      //    spawns the 5 Black Guards (10394) behind Ziggurat Door 04
+                      //    (175405) and opens that door in the same call: the door
+                      //    between the hall and the Baron. Gate on it (monotonic, never
+                      //    closes); the event-level CompleteWhenGOState above latches
+                      //    the event on the same signal. The guards walk to posts in the
+                      //    hall, on the Baron path, and are fought there as trash; their
+                      //    deaths only open the Baron door, which Baron's SmartAI has
+                      //    already opened. PHASE timeout, not the wave gap: the centre
+                      //    clear above can finish before the 33 Mindless (spawned over
+                      //    ~12s) reach the hall, and this wait then spans their fight.
+                      .WaitForGOState(STR_GO_HALL_DOOR, STR_GO_OPEN,
+                                      /*timeoutMs*/ STR_PHASE_TIMEOUT,
                                       /*searchRadius*/ STR_DOOR_SEARCH)
                       .Build());
 }
@@ -494,10 +492,11 @@ void RegisterStratholmeRoster(std::vector<BossRosterPatch>& t)
     // (SlaughterPos from instance_stratholme.cpp), ordered at key 12
     // (after the ziggurats + Barthilas, before Baron 13), carrying the
     // persistent slaughter event (eventId 4): clear the abominations ->
-    // Ramstein -> 33 Mindless Undead -> 5 Black Guards, which opens Baron's
-    // door. The event's KillCreatureEngage(Ramstein) flips his real bit when
-    // he dies (objectives skip the completion-mask check, so the order key is
-    // a pure ordering hint that can't collide).
+    // Ramstein -> 33 Mindless Undead -> 5 Black Guards, whose spawn opens
+    // Ziggurat Door 04 (175405) between the hall and the Baron. The event's
+    // KillCreatureEngage(Ramstein) flips his real bit when he dies
+    // (objectives skip the completion-mask check, so the order key is a
+    // pure ordering hint that can't collide).
     //
     // The three ziggurat bosses and Baron need NO remove/re-add — they have
     // static spawns and real bits and are pulled normally; their in-ziggurat

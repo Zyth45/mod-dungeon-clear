@@ -1074,11 +1074,11 @@ TEST(DungeonEventRegistryTest, UnderbogDropDownEventShape)
 // Stratholme (329) dead-side "Baron run": the persistent Slaughterhouse chain
 // (eventId 4), anchored at Ramstein's DBC bit 11 (after the ziggurats + Barthilas,
 // before Baron 12). Abominations+Ramstein (one ClearRadius) -> wait+clear undead
-// wave (ClearRadius) -> wait+kill guard wave (KillCreatureEngage, since the
-// guards post far off and a bot-centred ClearRadius can't see them) -> gate on
-// the Baron door opening. Slaughter progress isn't exposed via GetData, so the
-// phase barriers are the monotonic doors (combat-gap proof), not transient
-// creature checks.
+// wave (ClearRadius) -> gate on Ziggurat Door 04 (175405), which opens as the
+// guard wave spawns and is the door between the hall and the Baron (the Baron
+// door 175796 is opened by Baron's SmartAI on Reset). Slaughter progress isn't
+// exposed via GetData, so the phase barriers are the monotonic doors (combat-gap
+// proof), not transient creature checks.
 TEST(DungeonEventRegistryTest, StratholmeSlaughterhouseEventShape)
 {
     DungeonEvent const* e = DungeonEventRegistry::Find(329, 4);
@@ -1088,7 +1088,7 @@ TEST(DungeonEventRegistryTest, StratholmeSlaughterhouseEventShape)
     EXPECT_TRUE(e->persistent);
     EXPECT_TRUE(e->required);
 
-    ASSERT_EQ(e->steps.size(), 9u);
+    ASSERT_EQ(e->steps.size(), 7u);
 
     // 1. clear the hall of the pre-spawned abominations (bulk).
     EXPECT_EQ(e->steps[0].kind, EventStepKind::ClearRadius);
@@ -1123,26 +1123,21 @@ TEST(DungeonEventRegistryTest, StratholmeSlaughterhouseEventShape)
     EXPECT_GT(e->steps[4].radius, 75.0f);  // ~75yd west of the hall centre
     EXPECT_EQ(e->steps[5].kind, EventStepKind::ClearRadius);
 
-    // 3. wave 2: wait for the black guards, then actively seek+kill them
-    //    (KillCreatureEngage) — they post far off, so a bot-centred ClearRadius
-    //    can't see them.
-    EXPECT_EQ(e->steps[6].kind, EventStepKind::WaitForSpawn);
-    EXPECT_EQ(e->steps[6].creatureEntry, 10394u);
-    EXPECT_EQ(e->steps[7].kind, EventStepKind::KillCreature);
-    EXPECT_EQ(e->steps[7].creatureEntry, 10394u);
-
-    // 4. monotonic completion gate: the Baron door (175796) opens when the guards
-    //    die. GO_STATE_ACTIVE (0) = open.
-    EXPECT_EQ(e->steps[8].kind, EventStepKind::WaitForGameObjectState);
-    EXPECT_EQ(e->steps[8].goEntry, 175796u);
-    EXPECT_EQ(e->steps[8].wantState, 0u);
-    EXPECT_GT(e->steps[8].radius, 100.0f);  // reaches the door from across the hall
+    // 3. wave 2: the guards' spawn opens Ziggurat Door 04 (175405) between the
+    //    hall and the Baron. GO_STATE_ACTIVE (0) = open. Phase timeout: the wait
+    //    can span the whole Mindless fight.
+    EXPECT_EQ(e->steps[6].kind, EventStepKind::WaitForGameObjectState);
+    EXPECT_EQ(e->steps[6].goEntry, 175405u);
+    EXPECT_EQ(e->steps[6].wantState, 0u);
+    EXPECT_GE(e->steps[6].timeoutMs, 300000u);
+    EXPECT_GT(e->steps[6].radius, 100.0f);  // reaches the door from across the hall
 
     // ...and the same door completes the whole chain from ANY step: the party
     // fights these waves reactively (outside the arrival radius, with the event
     // engine dormant in combat), so the chain must converge however far the
-    // world ran ahead of it.
-    EXPECT_EQ(e->completeGoEntry, 175796u);
+    // world ran ahead of it. NOT the Baron door 175796: it reads open from the
+    // start, so the event latched at step 0 on arrival.
+    EXPECT_EQ(e->completeGoEntry, 175405u);
     EXPECT_EQ(e->completeGoState, 0u);
     EXPECT_GT(e->completeGoRadius, 100.0f);
 }
