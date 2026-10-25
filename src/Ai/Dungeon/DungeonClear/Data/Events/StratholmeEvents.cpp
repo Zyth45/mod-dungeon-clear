@@ -10,6 +10,7 @@
 #include <list>
 
 #include "Creature.h"
+#include "GameObject.h"
 #include "InstanceScript.h"
 #include "Log.h"
 #include "Player.h"
@@ -221,10 +222,31 @@ namespace
     // shut) and at 2 (acolytes dead), so the event fires exactly in the
     // "acolytes still up" window and never re-fires — the instance state is the
     // latch, no ConditionalLatchKey needed.
+    // The three chambers exist to open the Slaughter Square gate (175373,
+    // CheckZiggurats). Once the party stands at that gate and it is open, a
+    // chamber still at 1 has nothing left to unlock, and driving it from there
+    // only stalls the run: the PC runs tr-20261025-182419-62 and -180929-35
+    // reached the Slaughterhouse with 13/13 down, zig 2 still at 1, and stalled
+    // on "Ziggurat 2 acolytes" 200yd from its chamber mid abomination fight.
+    constexpr uint32 STR_GO_SLAUGHTER_GATE = 175373;
+    constexpr float STR_SLAUGHTER_GATE_X = 4037.15f;
+    constexpr float STR_SLAUGHTER_GATE_Y = -3469.15f;
+    constexpr float STR_SLAUGHTER_GATE_NEAR = 120.0f;
+
+    bool SlaughterGateOpenNearby(Player* bot)
+    {
+        if (bot->GetExactDist2d(STR_SLAUGHTER_GATE_X, STR_SLAUGHTER_GATE_Y) > STR_SLAUGHTER_GATE_NEAR)
+            return false;
+        GameObject* gate = bot->FindNearestGameObject(STR_GO_SLAUGHTER_GATE, STR_SLAUGHTER_GATE_NEAR);
+        return gate && gate->GetGoState() != GO_STATE_READY;
+    }
+
     bool ZigguratAcolytes(Player* bot, uint32 dataType)
     {
         InstanceScript* inst = DcTargeting::GetInstanceScript(bot);
-        return inst && inst->GetData(dataType) == 1;
+        if (!inst || inst->GetData(dataType) != 1)
+            return false;
+        return !SlaughterGateOpenNearby(bot);
     }
 
     bool StrZig1(Player* bot, AiObjectContext* /*context*/)
