@@ -168,6 +168,11 @@ namespace
     // The Bar Door goes to GO_STATE_ACTIVE_ALTERNATIVE when Rocknot breaks the
     // last keg (npc_rocknot EVENT_ROCKNOT_BREAK_KEG). Phalanx is woken 7s LATER.
     constexpr uint32 BRD_GO_STATE_ACTIVE_ALTERNATIVE = 2;
+    // Found from anywhere in the bar. The wait used to search 40yd around the
+    // tank; the bar going hostile mid-walk dragged it 57yd from the door, the
+    // door was never found and the wait ran out on a stall
+    // (tr-20261025-123246-18).
+    constexpr float BRD_BAR_DOOR_SEARCH = 120.0f;
     // Phalanx's wake-up: the 7s cork delay, then his run to the door, which his
     // own 15s EVENT_PHALANX_FINISH_MOVEMENT caps. A minute is plenty, and a
     // Phalanx who never turns is this step's timeout rather than a tank parked
@@ -1181,7 +1186,7 @@ void RegisterBlackrockDepthsEvents(std::vector<DungeonEvent>& out)
             // 16yd from here, close enough to meet him there.
             .MoveTo(ROCKNOT_HOLD_X, ROCKNOT_HOLD_Y, ROCKNOT_HOLD_Z, ROCKNOT_HOLD_RADIUS)
             .WaitForGOState(GO_BAR_DOOR, BRD_GO_STATE_ACTIVE_ALTERNATIVE,
-                            BRD_ROCKNOT_TIMEOUT_MS, /*searchRadius*/ 40.0f)
+                            BRD_ROCKNOT_TIMEOUT_MS, /*searchRadius*/ BRD_BAR_DOOR_SEARCH)
             .Custom(HOOK_PHALANX_AT_DOOR)
             .Timeout(BRD_PHALANX_WAKE_TIMEOUT_MS)
             .Build());
