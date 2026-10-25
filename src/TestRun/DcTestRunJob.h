@@ -460,6 +460,7 @@ private:
     static constexpr uint32 TELEPORT_RETRY_MS = 10 * 1000;
     void PrepareForTeleport(Player* bot) const;
     uint32 _destInstanceId = 0;        // the copy the leader landed in; 0 until it does
+    uint8 _startBounces = 0;           // Starting -> Teleporting returns (a member left the copy)
     bool _dcOnIssued = false;
     // One-shot so ReassertMaster's diagnostic names the first repair per run
     // instead of once a second forever.

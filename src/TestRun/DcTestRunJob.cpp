@@ -80,6 +80,9 @@ namespace
     // and the stage clock does not restart between them.
     constexpr uint32 TELEPORT_TIMEOUT_MS = 45 * 1000;
     constexpr uint32 START_TIMEOUT_MS = 20 * 1000;
+    // Times Starting may send the party back through Teleporting because a
+    // member left the copy before `dc on` (see TickStarting).
+    constexpr uint8 START_BOUNCES_MAX = 2;
 
     constexpr uint32 MONITOR_STEP_MS = 1000;
 
@@ -1582,6 +1585,41 @@ void DcTestRunJob::TickStarting()
             FailSetup("tank vanished before start");
         return;
     }
+
+    // Teleporting saw the whole party in the copy, but nothing holds it there
+    // until `dc on`: the run travel guard only covers an ENABLED run. A member
+    // that leaves now (a transfer that bounced back, another harness holding the
+    // same character) used to sit out the 20s below and fail as "no boss roster
+    // for this map" with the tank out in the world, in combat
+    // (tr-20261025-155012-136: Baltseve and Trinne on map 1 fighting a Blackhand
+    // Thug 22s after START). Send the party back through Teleporting, whose
+    // wave-1 and arrival retries already handle a member out in the world, a
+    // bounded number of times.
+    if (!_dcOnIssued)
+        for (Slot const& slot : _slots)
+        {
+            Player* bot = ObjectAccessor::FindPlayer(slot.guid);
+            if (!bot || !bot->IsInWorld() || bot->IsBeingTeleported())
+                continue;
+            if (bot->GetMapId() == _mapId && bot->GetInstanceId() == _destInstanceId)
+                continue;
+            if (_startBounces >= START_BOUNCES_MAX)
+            {
+                FailSetup(Acore::StringFormat(
+                    "{} left the dungeon before the start (now on map {} instance {}), {} times",
+                    bot->GetName(), bot->GetMapId(), bot->GetInstanceId(), _startBounces + 1));
+                return;
+            }
+            ++_startBounces;
+            LOG_WARN("playerbots.dungeonclear",
+                     "TESTRUN {} {} left the dungeon before the start (now on map {} instance "
+                     "{}{}) -> back to teleporting ({}/{})",
+                     _record.runId, bot->GetName(), bot->GetMapId(), bot->GetInstanceId(),
+                     bot->IsInCombat() ? ", in combat" : "", _startBounces, START_BOUNCES_MAX);
+            _lastTeleportMs = 0;
+            EnterStage(Stage::Teleporting);
+            return;
+        }
 
     // Freshly-teleported bots may not have the DC strategies installed yet
     // (contexts register on world ticks) — re-assert every tick; idempotent.
