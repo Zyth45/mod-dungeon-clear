@@ -33,6 +33,9 @@
 //   (events 1/12/13/14/15/16); boss-nav drives every approach, and EngageDirect
 //   only closes the last few yards once the tank has arrived. Same lesson as the
 //   statue rim walk (§5/§6 Watch B).
+//   The CoA 2.8 core (#8527) opens the forcefield from the start; the six anchors
+//   then read done from the instance data (ST_DATA_DEFENDER_KILLED) and the ring
+//   is not walked at all.
 //
 // GATE 2 (optional pit wing) — the STATUE order puzzle -> Atal'alarion. Six
 //   statues on the middle ring must be clicked IN ENTRY ORDER (148830..148835);
@@ -71,6 +74,25 @@ namespace
     // Boss-nav delivers the tank to the anchor (its own defender), so the engage
     // only needs a local search around the arrival spot to find that defender.
     constexpr float ST_DEFENDER_SEARCH = 60.0f;
+    // sunken_temple.h DATA_DEFENDER_KILLED / DEFENDERS_COUNT. GetData of that slot
+    // reads the six-kill counter on the stock script, and a constant 6 on the CoA
+    // 2.8 core, whose forcefield stands open from the start (core #8527). The six
+    // defender anchors are finished once it reads 6: on the stock script that is
+    // the kill that drops the forcefield, on the 2.8 core it is every tick, so the
+    // ring walk (and the "Stuck off the route to Hukku" stalls on it) is skipped.
+    constexpr int32 ST_DATA_DEFENDER_KILLED = 11;
+    constexpr uint32 ST_DEFENDERS_COUNT = 6;
+
+    // The Shade of Eranikus, the last boss. The CoA 2.8 core (#8527) keeps him
+    // NOT_SELECTABLE until the Avatar of Hakkar, Jammal'an and Ogom, Dreamscythe
+    // and Weaver, and Hazzas and Morphaz are all dead, so the roster sends the
+    // party to him only after the Avatar (order key below, past the pit wing).
+    // Before that core he was reached right after Hazzas and Morphaz, and on the
+    // 24/10 night every normal run engaged an untargetable Shade there and wiped
+    // (13/21, 4 runs of 4); the 23/10 binary, without that gate, killed him in
+    // 36-63s. The later order is valid on both cores.
+    constexpr uint32 ST_ERANIKUS = 5709;
+    constexpr int32 ST_ERANIKUS_ORDER = 19;
 
     // Central-circle pre-clear (event 17, before Jammal'an). Centre = the pit
     // centre (matches the defender-ring centre). Radius covers the circular floor;
@@ -235,7 +257,8 @@ void RegisterSunkenTempleEvents(std::vector<DungeonEvent>& out)
     // waits for 8443 and degrades to `dc skip` on timeout. When phase 2 lands it
     // drives the douse loop, then this waits for the Avatar and kills it.
     // Persistent keeps progress across the long fight; Optional degrades a hang to
-    // `dc skip`.
+    // `dc skip`. On the CoA 2.8 core the Avatar is one of the kills that wake the
+    // Shade of Eranikus, so a skipped Avatar leaves the last boss untargetable.
     out.push_back(EventBuilder(109, 9, "Avatar of Hakkar")
                       .Anchored(18)
                       .Persistent()
@@ -293,7 +316,7 @@ void RegisterSunkenTempleRoster(std::vector<BossRosterPatch>& t)
     // the real DBC bit (objectives skip the completion-mask check, so
     // their orderIndex is a pure ordering hint that can't collide). The
     // remaining auto bosses — Jammal'an, Morphaz, Hazzas, Eranikus — keep
-    // their real bits and natural order.
+    // their real bits; Eranikus alone is reordered to the end (p.reorder).
     //
     // FORCEFIELD via OBJECTIVE anchors (not a conditional event). The six
     // Atal'ai defenders each stand on their OWN separate upper BALCONY
@@ -321,10 +344,13 @@ void RegisterSunkenTempleRoster(std::vector<BossRosterPatch>& t)
     //      so it is reached just before Morphaz via the same same-index
     //      advance) — ONE merged objective (they are ~10yd apart and
     //      un-phase together).
-    //   10..15 six statues in click order } the whole OPTIONAL pit wing at
-    //   16     Atal'alarion                } the route tail (all > Eranikus
-    //   17     Idol of Hakkar               } 8) so a pit pathing failure
-    //   18     Avatar of Hakkar             } never blocks the spine.
+    //   10..15 six statues in click order } the OPTIONAL pit wing, after
+    //   16     Atal'alarion                } Morphaz and Hazzas (5/6), so a
+    //   17     Idol of Hakkar               } pit pathing failure never
+    //   18     Avatar of Hakkar             } blocks the spine.
+    //   19     Shade of Eranikus (reordered, real bit 8 kept) — LAST: on the
+    //          CoA 2.8 core he cannot be targeted until the Avatar is dead
+    //          (see ST_ERANIKUS_ORDER).
     {
         BossRosterPatch p;
         p.mapId = 109;
@@ -332,6 +358,17 @@ void RegisterSunkenTempleRoster(std::vector<BossRosterPatch>& t)
         // objectives below. (Weaver 5720, Dreamscythe 5721, Atal'alarion
         // 8580 are auto-derived bosses at bits 2/1/0 respectively.)
         p.remove = { 5720, 5721, 8580 };
+        p.reorder = { { ST_ERANIKUS, ST_ERANIKUS_ORDER } };
+
+        // A forcefield defender anchor is finished once the instance reads all
+        // six defenders dead (see ST_DATA_DEFENDER_KILLED): immediately on the
+        // CoA 2.8 core, where the forcefield is open from the start.
+        auto const defender = [](DungeonBossInfo o)
+        {
+            o.doneInstanceDataId = ST_DATA_DEFENDER_KILLED;
+            o.doneInstanceDataValue = ST_DEFENDERS_COUNT;
+            return o;
+        };
         p.add = {
             // GATE 1 forcefield — SIX ring anchors, one per Atal'ai
             // defender, in a monotonic sweep around the balcony. Each
@@ -348,24 +385,24 @@ void RegisterSunkenTempleRoster(std::vector<BossRosterPatch>& t)
             // each carries a one-kill event (1/12/13/14/15/16). Coords are
             // each defender's own spawn (Z ≈ −66.8). Ring-sweep order
             // (≈30°→90°→…→330° around centre −467,95).
-            MakeObjective(OBJ(11), /*orderIndex*/ 0, 109, "Atal'ai Defender (Mijan)",
-                          -406.2f, 131.1f, -66.9f, /*arriveRadius*/ 15.0f,
-                          /*gateEntry*/ 0, /*hook*/ 0, /*eventId*/ 1),
-            MakeObjective(OBJ(12), /*orderIndex*/ 0, 109, "Atal'ai Defender (Zul'Lor)",
-                          -467.4f, 166.0f, -66.7f, /*arriveRadius*/ 15.0f,
-                          /*gateEntry*/ 0, /*hook*/ 0, /*eventId*/ 12),
-            MakeObjective(OBJ(13), /*orderIndex*/ 0, 109, "Atal'ai Defender (Zolo)",
-                          -528.6f, 130.2f, -66.8f, /*arriveRadius*/ 15.0f,
-                          /*gateEntry*/ 0, /*hook*/ 0, /*eventId*/ 13),
-            MakeObjective(OBJ(14), /*orderIndex*/ 0, 109, "Atal'ai Defender (Gasher)",
-                          -528.0f, 59.5f, -66.7f, /*arriveRadius*/ 15.0f,
-                          /*gateEntry*/ 0, /*hook*/ 0, /*eventId*/ 14),
-            MakeObjective(OBJ(15), /*orderIndex*/ 0, 109, "Atal'ai Defender (Loro)",
-                          -466.7f, 24.4f, -66.8f, /*arriveRadius*/ 15.0f,
-                          /*gateEntry*/ 0, /*hook*/ 0, /*eventId*/ 15),
-            MakeObjective(OBJ(16), /*orderIndex*/ 0, 109, "Atal'ai Defender (Hukku)",
-                          -405.5f, 60.5f, -67.1f, /*arriveRadius*/ 15.0f,
-                          /*gateEntry*/ 0, /*hook*/ 0, /*eventId*/ 16),
+            defender(MakeObjective(OBJ(11), /*orderIndex*/ 0, 109, "Atal'ai Defender (Mijan)",
+                                   -406.2f, 131.1f, -66.9f, /*arriveRadius*/ 15.0f,
+                                   /*gateEntry*/ 0, /*hook*/ 0, /*eventId*/ 1)),
+            defender(MakeObjective(OBJ(12), /*orderIndex*/ 0, 109, "Atal'ai Defender (Zul'Lor)",
+                                   -467.4f, 166.0f, -66.7f, /*arriveRadius*/ 15.0f,
+                                   /*gateEntry*/ 0, /*hook*/ 0, /*eventId*/ 12)),
+            defender(MakeObjective(OBJ(13), /*orderIndex*/ 0, 109, "Atal'ai Defender (Zolo)",
+                                   -528.6f, 130.2f, -66.8f, /*arriveRadius*/ 15.0f,
+                                   /*gateEntry*/ 0, /*hook*/ 0, /*eventId*/ 13)),
+            defender(MakeObjective(OBJ(14), /*orderIndex*/ 0, 109, "Atal'ai Defender (Gasher)",
+                                   -528.0f, 59.5f, -66.7f, /*arriveRadius*/ 15.0f,
+                                   /*gateEntry*/ 0, /*hook*/ 0, /*eventId*/ 14)),
+            defender(MakeObjective(OBJ(15), /*orderIndex*/ 0, 109, "Atal'ai Defender (Loro)",
+                                   -466.7f, 24.4f, -66.8f, /*arriveRadius*/ 15.0f,
+                                   /*gateEntry*/ 0, /*hook*/ 0, /*eventId*/ 15)),
+            defender(MakeObjective(OBJ(16), /*orderIndex*/ 0, 109, "Atal'ai Defender (Hukku)",
+                                   -405.5f, 60.5f, -67.1f, /*arriveRadius*/ 15.0f,
+                                   /*gateEntry*/ 0, /*hook*/ 0, /*eventId*/ 16)),
 
             // Central circle PRE-CLEAR (orderIndex 1: after the six
             // defenders at 0, before Jammal'an at 3). The big circular

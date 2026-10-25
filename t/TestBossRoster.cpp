@@ -753,8 +753,8 @@ TEST(BossRosterRegistryTest, DireMaulWestPylonsAndOrder)
 // the three phase/puzzle-gated bosses (Weaver 5720, Dreamscythe 5721, Atal'alarion
 // 8580) from their low bits and re-adds them — plus the statue/idol/Avatar pit
 // wing — as event-bearing objective anchors. Weaver & Dreamscythe land on the
-// required spine (after Jammal'an, before Eranikus); the whole pit wing lands at
-// the route tail (after Eranikus).
+// required spine (after Jammal'an, before Eranikus); the pit wing follows Hazzas,
+// and Eranikus is reordered to the very end (after the Avatar).
 TEST(BossRosterRegistryTest, SunkenTempleReordersPhaseGatedBosses)
 {
     std::vector<DungeonBossInfo> base = {
@@ -813,9 +813,27 @@ TEST(BossRosterRegistryTest, SunkenTempleReordersPhaseGatedBosses)
     EXPECT_LT(pos(5710), wdPos);
     EXPECT_LT(wdPos, pos(5709));
 
-    // Optional pit wing (statues..Avatar) at the tail, after Eranikus.
-    EXPECT_LT(pos(5709), statuePos);
+    // Optional pit wing (statues..Avatar) after Hazzas, then Eranikus LAST: the
+    // CoA 2.8 core keeps him untargetable until the Avatar is dead. He keeps his
+    // real kill-bit (8) and only moves in the clear order.
+    EXPECT_LT(pos(5722), statuePos);
     EXPECT_LT(statuePos, avatarPos);
+    EXPECT_LT(avatarPos, pos(5709));
+    EXPECT_EQ(Find(out, 5709)->encounterIndex, 8u);
+    EXPECT_EQ(pos(5709), (int)out.size() - 1);
+
+    // The six forcefield defenders read done from DATA_DEFENDER_KILLED (11) == 6:
+    // at once on the 2.8 core (forcefield open), after the sixth kill otherwise.
+    int defenders = 0;
+    for (DungeonBossInfo const& b : out)
+    {
+        if (b.kind != DungeonAnchorKind::Objective || b.encounterIndex != 0)
+            continue;
+        ++defenders;
+        EXPECT_EQ(b.doneInstanceDataId, 11);
+        EXPECT_EQ(b.doneInstanceDataValue, 6u);
+    }
+    EXPECT_EQ(defenders, 6);
 }
 
 // --- Apply: pass-through for unpatched maps -------------------------------
