@@ -1864,6 +1864,78 @@ TEST(DungeonEventIntegrityTest, AzjolNerubAnchorsTheRouteToAnubarak)
         << "anchor 1 is back in the drop chamber's half of the lower kingdom";
 }
 
+// Blackfathom Deeps (48): four rows that keep the party off the swim fallback —
+// see RegisterBlackfathomDeepsRoute. The cheap always-on half: each row exists
+// and is shared by heroic, its legs stay well inside the resnap radius, it
+// stops short of the appended goal, it starts where the previous boss dies, and
+// no anchor dives below the lakes' surface (z -56), which is how the swim
+// fallback drowned the party in the passage to Lady Sarevess.
+TEST(DungeonEventIntegrityTest, BlackfathomDeepsAnchorsTheWaterLegs)
+{
+    struct Row
+    {
+        uint32 boss;
+        float bossX, bossY;
+        bool startsAtPrevBoss;
+        float prevX, prevY;
+    };
+    Row const rows[] = {
+        { 4831, -299.9f, 413.8f, true, -442.4f, 211.8f },   // Lady Sarevess, from Ghamoo-ra
+        { 6243, -412.7f, 40.9f, true, -299.9f, 413.8f },    // Gelihast, from Lady Sarevess
+        { 4832, -818.8f, -155.6f, false, 0.0f, 0.0f },      // Kelris, from the pool strip
+        { 4829, -848.4f, -453.9f, false, 0.0f, 0.0f },      // Aku'mai, from the pool strip
+    };
+    constexpr float kMaxLeg = 20.0f;
+
+    for (Row const& r : rows)
+    {
+        std::vector<WaypointHint> const* route =
+            DungeonClearRouteRegistry::Get(48, DUNGEON_DIFFICULTY_NORMAL, r.boss);
+        ASSERT_NE(route, nullptr) << "Blackfathom Deeps has no authored route to " << r.boss;
+        ASSERT_GE(route->size(), 2u);
+        EXPECT_EQ(DungeonClearRouteRegistry::Get(48, DUNGEON_DIFFICULTY_HEROIC, r.boss), route);
+
+        for (size_t i = 1; i < route->size(); ++i)
+        {
+            WaypointHint const& a = (*route)[i - 1];
+            WaypointHint const& b = (*route)[i];
+            EXPECT_LT(std::hypot(b.x - a.x, b.y - a.y), kMaxLeg)
+                << "boss " << r.boss << " leg " << i << " is too long to resnap over";
+        }
+        for (WaypointHint const& h : *route)
+            EXPECT_GT(h.z, -58.0f) << "boss " << r.boss << " anchor dives under the surface";
+
+        WaypointHint const& last = route->back();
+        float const tail = std::hypot(last.x - r.bossX, last.y - r.bossY);
+        EXPECT_GT(tail, 5.0f) << "boss " << r.boss << ": last anchor duplicates the goal";
+        EXPECT_LT(tail, 25.0f) << "boss " << r.boss << ": goal leg longer than any authored leg";
+
+        if (r.startsAtPrevBoss)
+        {
+            WaypointHint const& first = route->front();
+            EXPECT_LT(std::hypot(first.x - r.prevX, first.y - r.prevY), 1.0f)
+                << "boss " << r.boss << ": the row must start where the previous boss dies";
+        }
+    }
+
+    // Aku'mai's row opens with Kelris's whole row, the way out of the pool under
+    // the platform, so a party that ended Kelris's fight in the water still
+    // leaves by the shore.
+    std::vector<WaypointHint> const* kelris =
+        DungeonClearRouteRegistry::Get(48, DUNGEON_DIFFICULTY_NORMAL, 4832);
+    std::vector<WaypointHint> const* akumai =
+        DungeonClearRouteRegistry::Get(48, DUNGEON_DIFFICULTY_NORMAL, 4829);
+    ASSERT_NE(kelris, nullptr);
+    ASSERT_NE(akumai, nullptr);
+    ASSERT_LT(kelris->size(), akumai->size());
+    for (size_t i = 0; i < kelris->size(); ++i)
+    {
+        EXPECT_FLOAT_EQ((*akumai)[i].x, (*kelris)[i].x) << "anchor " << i;
+        EXPECT_FLOAT_EQ((*akumai)[i].y, (*kelris)[i].y) << "anchor " << i;
+        EXPECT_FLOAT_EQ((*akumai)[i].z, (*kelris)[i].z) << "anchor " << i;
+    }
+}
+
 // --- Ahn'kahet: The Old Kingdom (map 619) ---------------------------------
 //
 // Both of this map's gates fail the same silent way: the boss stays immune and
