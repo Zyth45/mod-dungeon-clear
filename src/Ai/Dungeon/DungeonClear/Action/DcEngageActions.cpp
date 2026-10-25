@@ -2931,6 +2931,30 @@ bool DungeonClearDoorBlockedAction::Execute(Event event)
             }
         }
 
+        // Shadowfang Keep: Wolf Master Nandos stands 2.6yd in front of Arugal's
+        // Lair, which opens on his death. Fenrus' death sets his counter and his
+        // SmartAI then attacks the closest player within 60yd; with nobody that
+        // close he stays put, the route to him ends at the shut door and the run
+        // paused (NUC 25/10, e.g. tr-20261025-145829-108). Start what his script
+        // would have.
+        if (door && door->GetEntry() == 18971 && DcEngageGeometry::IsDoorClosed(door) &&
+            !DcTargeting::FindLiveCreatureOnMap(bot, 4274))
+        {
+            if (Creature* nandos = DcTargeting::FindLiveCreatureOnMap(bot, 3927))
+            {
+                if (!nandos->IsInCombat() && nandos->AI())
+                {
+                    nandos->AI()->AttackStart(bot);
+                    LOG_INFO("playerbots.dungeonclear",
+                             "[DC:{}] door-blocked: Nandos idle in front of Arugal's Lair after Fenrus -> "
+                             "starting his attack as his counter script would",
+                             bot->GetName());
+                }
+                StallDungeonClearForDoor(botAI, waitReason);
+                return true;
+            }
+        }
+
         bool const canOpen = DC_ATTEMPT_DOOR_OPEN && door &&
                              !DcEventDoorRegistry::IsScriptOnly(door->GetEntry()) &&
                              BotCanOpenDoorLikePlayer(bot, door);
