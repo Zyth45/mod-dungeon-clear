@@ -820,6 +820,24 @@ TEST(BossRosterRegistryTest, SunkenTempleReordersPhaseGatedBosses)
     EXPECT_LT(statuePos, avatarPos);
     EXPECT_LT(avatarPos, pos(5709));
     EXPECT_EQ(Find(out, 5709)->encounterIndex, 8u);
+
+    // Between the Avatar and the Shade: the dragonkin pre-clear (event 18), then
+    // the muster (event 19), in that order.
+    int packPos = -1, musterPos = -1;
+    for (int i = 0; i < (int)out.size(); ++i)
+    {
+        if (out[i].kind != DungeonAnchorKind::Objective)
+            continue;
+        if (out[i].eventId == 18)
+            packPos = i;
+        if (out[i].eventId == 19)
+            musterPos = i;
+    }
+    ASSERT_GE(packPos, 0) << "dragonkin pre-clear objective missing";
+    ASSERT_GE(musterPos, 0) << "Eranikus muster objective missing";
+    EXPECT_LT(avatarPos, packPos);
+    EXPECT_LT(packPos, musterPos);
+    EXPECT_LT(musterPos, pos(5709));
     EXPECT_EQ(pos(5709), (int)out.size() - 1);
 
     // The six forcefield defenders read done from DATA_DEFENDER_KILLED (11) == 6:

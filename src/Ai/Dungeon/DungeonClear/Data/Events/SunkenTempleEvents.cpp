@@ -6,6 +6,21 @@
 #include "Ai/Dungeon/DungeonClear/Data/Events/DungeonEventTables.h"
 #include "Ai/Dungeon/DungeonClear/Data/Events/DungeonRosterBuilders.h"
 
+#include <string>
+
+#include "Creature.h"
+#include "Group.h"
+#include "Log.h"
+#include "Player.h"
+#include "Playerbots.h"
+#include "Timer.h"
+#include "Ai/Dungeon/DungeonClear/Data/DungeonBossInfo.h"
+#include "Ai/Dungeon/DungeonClear/DcValueKeys.h"
+#include "Ai/Dungeon/DungeonClear/Overrides/ObjectiveHookRegistry.h"
+#include "Ai/Dungeon/DungeonClear/Settings/DcSettings.h"
+#include "Ai/Dungeon/DungeonClear/Util/DcRun.h"
+#include "Ai/Dungeon/DungeonClear/Util/DungeonEventExecutor.h"
+
 // --- Sunken Temple / Temple of Atal'Hakkar (map 109) ----------------------
 // The most mechanically dense dungeon in the set: THREE independent scripted
 // gates over four stacked Z-levels around a central pit. Full design in
@@ -90,9 +105,51 @@ namespace
     // Before that core he was reached right after Hazzas and Morphaz, and on the
     // 24/10 night every normal run engaged an untargetable Shade there and wiped
     // (13/21, 4 runs of 4); the 23/10 binary, without that gate, killed him in
-    // 36-63s. The later order is valid on both cores.
+    // 36-63s. The later order is valid on both cores. Two objectives come
+    // between the Avatar (18) and him: the pre-clear (19) and the muster (20).
     constexpr uint32 ST_ERANIKUS = 5709;
-    constexpr int32 ST_ERANIKUS_ORDER = 19;
+    constexpr int32 ST_ERANIKUS_ORDER = 21;
+    constexpr float ST_ERANIKUS_X = -658.4f;  // his spawn
+    constexpr float ST_ERANIKUS_Y = -35.8f;
+    constexpr float ST_ERANIKUS_Z = -90.8f;
+
+    // His pull wakes the dragonkin. Shade of Eranikus smart_scripts "On Aggro -
+    // Set Instance Data 12" -> instance_sunken_temple DATA_ERANIKUS_FIGHT, which
+    // runs SetInCombatWithZone on EVERY living dragonkin in a loaded grid. The
+    // nearest are the whelp/wyrmkin/scalebane pack 102-121yd east of him
+    // (centre below); they reach the fight in seconds and land on the healer.
+    // Event 18 kills that pack first, dragonkin only.
+    constexpr uint32 ST_NIGHTMARE_WHELP = 8319;
+    constexpr uint32 ST_NIGHTMARE_SCALEBANE = 5277;
+    constexpr uint32 ST_NIGHTMARE_WYRMKIN = 5280;
+    constexpr uint32 ST_NIGHTMARE_WANDERER = 5283;
+    constexpr float ST_EAST_PACK_X = -553.0f;
+    constexpr float ST_EAST_PACK_Y = -68.0f;
+    constexpr float ST_EAST_PACK_Z = -90.8f;
+    constexpr float ST_EAST_PACK_RADIUS = 25.0f;  // the six spawns sit within 13yd
+    constexpr float ST_EAST_PACK_ZBAND = 10.0f;
+    constexpr uint32 ST_EAST_PACK_TIMEOUT = 120000;
+
+    // Event 19: the muster before the Shade (hook below). The anchor stops the
+    // tank 40yd short of him on the way in (well outside his aggro); the hook
+    // holds there until the party stands together and is topped off, for at most
+    // ST_MUSTER_CAP_MS, then lets the boss engage go. The step timeout is a
+    // backstop above the cap: the hook always ends the step itself, so the rest
+    // override it raised is always taken back.
+    constexpr uint32 HOOK_ST_ERANIKUS_MUSTER = 63;
+    constexpr float ST_MUSTER_ARRIVE = 40.0f;
+    constexpr float ST_MUSTER_SHADE_SCAN = 120.0f;
+    constexpr uint32 ST_MUSTER_CAP_MS = 120000;
+    constexpr uint32 ST_MUSTER_TIMEOUT = 180000;
+    // Bars, bots: health full but for a sliver, mana at the Smart Rest release
+    // bar. Humans are only held to looser bars (they may not drink on cue). The
+    // tank runs this hook and owns the tick, so it cannot eat or drink here: it
+    // is held to health only, which the healers restore out of combat.
+    constexpr float ST_MUSTER_BOT_HP = 95.0f;
+    constexpr float ST_MUSTER_BOT_MANA = 90.0f;
+    constexpr float ST_MUSTER_HUMAN_HP = 90.0f;
+    constexpr float ST_MUSTER_HUMAN_MANA = 80.0f;
+    constexpr float ST_MUSTER_TANK_HP = 90.0f;
 
     // Central-circle pre-clear (event 17, before Jammal'an). Centre = the pit
     // centre (matches the defender-ring centre). Radius covers the circular floor;
@@ -159,6 +216,134 @@ namespace
     constexpr float ST_NORTH_SEARCH = 80.0f;
     // Generous wait for the Avatar to manifest once the flames are doused.
     constexpr uint32 ST_AVATAR_SPAWN_WAIT = 150000;
+}
+
+namespace
+{
+    // --- the Shade of Eranikus muster (hook 63) ----------------------------
+    // 5-man counterpart of the raid muster (DcRaidMuster, raid maps only): raise
+    // the run's RestHealthPct/RestManaPct to 100 so the bots eat and drink all the
+    // way up, and hold the tank until every living member stands within
+    // PartyMaxSpread of it and is over the bars above. The 24/10 night showed the
+    // party walking onto the Shade 20-40s after Hazzas and Morphaz, healer first
+    // to die, with "Waiting on ... (out of range)" just before the pull.
+    //
+    // The override is flagged with DcRunState::musterRestOverride, the raid
+    // muster's own flag (DcRaidMuster never runs on a 5-man map): with it set,
+    // DcPartyState::GetRestGate does not read the 100/100 back as a readiness
+    // floor, so this hook, bounded by ST_MUSTER_CAP_MS, is the only thing that
+    // waits on it. Retracted on every Done; never set over a value the player
+    // pinned for the run.
+    void ApplyMusterRest(Player* bot, DcRunState& run)
+    {
+        if (run.musterRestOverride)
+            return;
+        ObjectGuid const owner = bot->GetGUID();
+        if (DcSettings::HasOverride(owner, "RestHealthPct") ||
+            DcSettings::HasOverride(owner, "RestManaPct"))
+            return;
+        DcSettings::SetOverride(owner, "RestHealthPct", 100.0, nullptr);
+        DcSettings::SetOverride(owner, "RestManaPct", 100.0, nullptr);
+        run.musterRestOverride = true;
+        LOG_INFO("playerbots.dungeonclear",
+                 "[DC:{}] Shade of Eranikus — mustering: regroup and rest to full before the pull",
+                 bot->GetName());
+    }
+
+    void RetractMusterRest(Player* bot, DcRunState& run)
+    {
+        if (!run.musterRestOverride)
+            return;
+        DcSettings::ResetOverride(bot->GetGUID(), "RestHealthPct");
+        DcSettings::ResetOverride(bot->GetGUID(), "RestManaPct");
+        run.musterRestOverride = false;
+    }
+
+    ObjectiveArriveResult MusterBeforeEranikus(Player* bot, AiObjectContext* context,
+                                               DungeonBossInfo const& /*info*/)
+    {
+        DcRunState& run = DcRun::Of(context);
+
+        // Already fighting him (or he is gone): nothing left to prepare.
+        Creature* shade = bot->FindNearestCreature(ST_ERANIKUS, ST_MUSTER_SHADE_SCAN, /*alive*/ true);
+        if (!shade || shade->IsInCombat())
+        {
+            RetractMusterRest(bot, run);
+            return ObjectiveArriveResult::Done;
+        }
+
+        Group* group = bot->GetGroup();
+        if (!group)
+        {
+            RetractMusterRest(bot, run);
+            return ObjectiveArriveResult::Done;
+        }
+
+        DungeonEventProgress const& prog =
+            context->GetValue<DungeonEventProgress&>(DcKey::EventProgress)->Get();
+        uint32 const elapsed = getMSTimeDiff(prog.stepStartMs, getMSTime());
+
+        ApplyMusterRest(bot, run);
+
+        float const spread = DcSettings::GetFloat(bot, "PartyMaxSpread");
+        std::string waiting;
+        uint32 blockers = 0;
+        for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
+        {
+            Player* member = ref->GetSource();
+            if (!member || !member->IsInWorld() || !member->IsAlive() ||
+                member->GetMapId() != bot->GetMapId())
+                continue;
+
+            bool const isBot = GET_PLAYERBOT_AI(member) != nullptr;
+            bool const isTank = member == bot;
+            float const hpBar = isTank ? ST_MUSTER_TANK_HP
+                                       : (isBot ? ST_MUSTER_BOT_HP : ST_MUSTER_HUMAN_HP);
+            float const manaBar = isTank ? 0.0f
+                                         : (isBot ? ST_MUSTER_BOT_MANA : ST_MUSTER_HUMAN_MANA);
+
+            char const* why = nullptr;
+            if (!isTank && bot->GetDistance(member) > spread)
+                why = "out of range";
+            else if (member->GetHealthPct() < hpBar)
+                why = "health";
+            else if (manaBar > 0.0f && member->GetMaxPower(POWER_MANA) > 0 &&
+                     member->GetPowerPct(POWER_MANA) < manaBar)
+                why = "mana";
+            if (!why)
+                continue;
+
+            ++blockers;
+            if (!waiting.empty())
+                waiting += ", ";
+            waiting += member->GetName() + " (" + why + ")";
+        }
+
+        if (!blockers)
+        {
+            RetractMusterRest(bot, run);
+            LOG_INFO("playerbots.dungeonclear",
+                     "[DC:{}] Shade of Eranikus — party together and topped off after {}s, pulling",
+                     bot->GetName(), elapsed / IN_MILLISECONDS);
+            return ObjectiveArriveResult::Done;
+        }
+
+        if (elapsed >= ST_MUSTER_CAP_MS)
+        {
+            RetractMusterRest(bot, run);
+            LOG_WARN("playerbots.dungeonclear",
+                     "[DC:{}] Shade of Eranikus — muster cap ({}s) reached, still waiting on {}; "
+                     "pulling anyway", bot->GetName(), ST_MUSTER_CAP_MS / IN_MILLISECONDS, waiting);
+            return ObjectiveArriveResult::Done;
+        }
+
+        return ObjectiveArriveResult::Running;
+    }
+}
+
+void RegisterSunkenTempleHooks(ObjectiveHookRegistry::HookTable& out)
+{
+    ObjectiveHookRegistry::AddHook(out, HOOK_ST_ERANIKUS_MUSTER, &MusterBeforeEranikus);
 }
 
 void RegisterSunkenTempleEvents(std::vector<DungeonEvent>& out)
@@ -293,6 +478,35 @@ void RegisterSunkenTempleEvents(std::vector<DungeonEvent>& out)
                       .Optional()
                       .KillCreatureEngage(ST_ATALALARION, 1, ST_BOSS_SEARCH).Timeout(ST_BOSS_TIMEOUT)
                       .Build());
+
+    // --- Event 18: the dragonkin pack east of the Shade (orderIndex 19) ------
+    // Killed BEFORE the muster and the pull: the Shade's aggro zone-pulls every
+    // living dragonkin in a loaded grid (see ST_EAST_PACK_*), and this pack is the
+    // nearest. Dragonkin only (OnlyEntries), so the sweep never wanders onto
+    // anything his pull would leave alone. Persistent so a chase does not drop the
+    // objective; Optional + timeout so an unreachable straggler degrades to "go on"
+    // rather than stalling the last boss.
+    out.push_back(EventBuilder(109, 18, "Dragonkin before the Shade")
+                      .Anchored(19)
+                      .Persistent()
+                      .Optional()
+                      .ClearRadius(ST_EAST_PACK_X, ST_EAST_PACK_Y, ST_EAST_PACK_Z,
+                                   ST_EAST_PACK_RADIUS, ST_EAST_PACK_ZBAND)
+                      .OnlyEntries({ ST_NIGHTMARE_WHELP, ST_NIGHTMARE_SCALEBANE,
+                                     ST_NIGHTMARE_WYRMKIN, ST_NIGHTMARE_WANDERER })
+                      .Timeout(ST_EAST_PACK_TIMEOUT)
+                      .Build());
+
+    // --- Event 19: muster before the Shade of Eranikus (orderIndex 20) -------
+    // Regroup and rest to full 40yd short of him (hook 63), then the ordinary
+    // boss engage takes over. Optional: a muster that cannot finish only costs the
+    // top-off, never the run.
+    out.push_back(EventBuilder(109, 19, "Muster before the Shade of Eranikus")
+                      .Anchored(20)
+                      .Optional()
+                      .Custom(HOOK_ST_ERANIKUS_MUSTER)
+                      .Timeout(ST_MUSTER_TIMEOUT)
+                      .Build());
 }
 
 // --- roster patch (relocated from BossRosterRegistry) --------------------
@@ -348,7 +562,9 @@ void RegisterSunkenTempleRoster(std::vector<BossRosterPatch>& t)
     //   16     Atal'alarion                } Morphaz and Hazzas (5/6), so a
     //   17     Idol of Hakkar               } pit pathing failure never
     //   18     Avatar of Hakkar             } blocks the spine.
-    //   19     Shade of Eranikus (reordered, real bit 8 kept) — LAST: on the
+    //   19     dragonkin pack east of the Shade (pre-clear, event 18)
+    //   20     muster before the Shade (event 19, hook 63)
+    //   21     Shade of Eranikus (reordered, real bit 8 kept) — LAST: on the
     //          CoA 2.8 core he cannot be targeted until the Avatar is dead
     //          (see ST_ERANIKUS_ORDER).
     {
@@ -458,6 +674,18 @@ void RegisterSunkenTempleRoster(std::vector<BossRosterPatch>& t)
             MakeObjective(OBJ(10), 18, 109, "Avatar of Hakkar",
                           -466.8f, 272.9f, -90.4f, 15.0f, /*gateEntry*/ 0,
                           0, /*eventId*/ 9),
+
+            // Before the Shade of Eranikus (reordered to 21, last): kill the
+            // dragonkin pack his pull would bring first (event 18, anchored on
+            // the pack), then muster 40yd short of him (event 19, anchored on
+            // his spawn so boss-nav walks the tank in and stops outside his
+            // aggro).
+            MakeObjective(OBJ(18), 19, 109, "Dragonkin before the Shade",
+                          ST_EAST_PACK_X, ST_EAST_PACK_Y, ST_EAST_PACK_Z,
+                          ST_EAST_PACK_RADIUS, 0, 0, /*eventId*/ 18),
+            MakeObjective(OBJ(19), 20, 109, "Muster before the Shade of Eranikus",
+                          ST_ERANIKUS_X, ST_ERANIKUS_Y, ST_ERANIKUS_Z,
+                          ST_MUSTER_ARRIVE, 0, 0, /*eventId*/ 19),
         };
         t.push_back(std::move(p));
     }

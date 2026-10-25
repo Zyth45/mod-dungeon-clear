@@ -452,6 +452,32 @@ TEST(DungeonEventRegistryTest, SunkenTempleCentralCirclePreClear)
     EXPECT_GT(circle->steps[0].zBand, 0.0f);       // floor band set
 }
 
+// Events 18-19 — before the Shade of Eranikus: kill the dragonkin pack his aggro
+// zone-pulls first (dragonkin-only ClearRadius), then the muster hook (63) that
+// regroups the party and tops it off. Both Optional: neither may stall the last
+// boss.
+TEST(DungeonEventRegistryTest, SunkenTempleBeforeEranikus)
+{
+    DungeonEvent const* pack = DungeonEventRegistry::Find(109, 18);
+    ASSERT_NE(pack, nullptr);
+    EXPECT_EQ(pack->activation, EventActivation::Anchored);
+    EXPECT_TRUE(pack->persistent);
+    EXPECT_FALSE(pack->required);
+    ASSERT_EQ(pack->steps.size(), 1u);
+    EXPECT_EQ(pack->steps[0].kind, EventStepKind::ClearRadius);
+    EXPECT_TRUE(pack->steps[0].engage);
+    EXPECT_FALSE(pack->steps[0].entryFilter.empty());  // dragonkin only
+
+    DungeonEvent const* muster = DungeonEventRegistry::Find(109, 19);
+    ASSERT_NE(muster, nullptr);
+    EXPECT_EQ(muster->activation, EventActivation::Anchored);
+    EXPECT_FALSE(muster->required);
+    ASSERT_EQ(muster->steps.size(), 1u);
+    EXPECT_EQ(muster->steps[0].kind, EventStepKind::Custom);
+    EXPECT_EQ(muster->steps[0].hookId, 63u);
+    EXPECT_TRUE(ObjectiveHookRegistry::Has(63));
+}
+
 // The ClearRadius builder packs the centre, radius and floor z-band, and marks
 // the step engage-driven (the objective action walks the tank in to fight).
 TEST(DungeonEventBuilderTest, ClearRadiusStep)

@@ -112,6 +112,10 @@ void RegisterBlackrockDepthsHooks(ObjectiveHookRegistry::HookTable& out);
 // (and the mod-individual-progression layering) they read.
 void RegisterBlackrockSpireHooks(ObjectiveHookRegistry::HookTable& out);
 
+// Sunken Temple (map 109) — the muster before the Shade of Eranikus (id 63).
+// Lives beside the events in SunkenTempleEvents.cpp, which owns the geometry.
+void RegisterSunkenTempleHooks(ObjectiveHookRegistry::HookTable& out);
+
 // Stratholme (map 329) — ziggurat crystal repair (ids 44-46). Lives beside the
 // ziggurat events in StratholmeEvents.cpp, which owns the chamber geometry.
 void RegisterStratholmeHooks(ObjectiveHookRegistry::HookTable& out);

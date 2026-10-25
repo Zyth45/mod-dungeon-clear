@@ -851,6 +851,7 @@ namespace
             RegisterStratholmeHooks(t);
             RegisterBlackrockDepthsHooks(t);
             RegisterBlackrockSpireHooks(t);
+            RegisterSunkenTempleHooks(t);
             return t;
         }();
         return kHooks;
