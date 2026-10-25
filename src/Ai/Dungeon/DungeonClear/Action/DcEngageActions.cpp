@@ -2864,6 +2864,31 @@ bool DungeonClearDoorBlockedAction::Execute(Event event)
         // and his SmartAI reopens "the closest one within 90 yd" on death, which
         // misses them when the pull dragged him off. Once he is dead, do what his
         // script meant to do.
+        // Shadowfang Keep: the Courtyard Door is opened by the freed prisoner
+        // (Ashcrombe / Adamant, a conditional event). On the NUC it stayed shut on
+        // 8 runs of 20 overnight (24-25/10) with the event never firing. In an
+        // all-bot party (test runs: nobody else will free him), once Rethilgore is
+        // dead, open it as the prisoner would. With a player in the party the
+        // pause stands: the player frees the prisoner.
+        if (door && door->GetEntry() == 18895 && DcEngageGeometry::IsDoorClosed(door) &&
+            !DcTargeting::FindLiveCreatureOnMap(bot, 3914))
+        {
+            bool human = false;
+            if (Group* group = bot->GetGroup())
+                for (GroupReference* ref = group->GetFirstMember(); ref && !human; ref = ref->next())
+                    if (Player* m = ref->GetSource(); m && !GET_PLAYERBOT_AI(m))
+                        human = true;
+            if (!human)
+            {
+                door->SetGoState(GO_STATE_ACTIVE);
+                LOG_INFO("playerbots.dungeonclear",
+                         "[DC:{}] door-blocked: all-bot party, Rethilgore dead, prisoner event not fired -> "
+                         "opening the Courtyard Door {}",
+                         bot->GetName(), door->GetGUID().ToString());
+                return true;
+            }
+        }
+
         if (door && (door->GetEntry() == 175372 || door->GetEntry() == 175377) &&
             DcEngageGeometry::IsDoorClosed(door) &&
             !DcTargeting::FindLiveCreatureOnMap(bot, 10435))
