@@ -1603,7 +1603,26 @@ EventDriveOutcome DungeonEventExecutor::Drive(Player* bot, AiObjectContext* cont
         }
     }
 
-    return Advance(ev, prog, result, now, defaultTimeoutMs);
+    uint32 const failedStep = prog.stepIndex;
+    uint32 const elapsedMs = now - prog.stepStartMs;
+    EventDriveOutcome const outcome = Advance(ev, prog, result, now, defaultTimeoutMs);
+    // The step that ended the event short is otherwise visible only at DEBUG:
+    // tr-20261025-161651-157 stalled on "Lyceum: North Brazier" with no INFO line
+    // saying whether the keeper hunt or the walk to the brazier had run out.
+    // Throttled: a required event that timed out reports Stalled on every tick.
+    if (bot && (outcome == EventDriveOutcome::Stalled || outcome == EventDriveOutcome::Skipped) &&
+        failedStep < ev.steps.size() &&
+        (prog.shortEndLogMs == 0 || getMSTimeDiff(prog.shortEndLogMs, now) >= 10000))
+    {
+        prog.shortEndLogMs = now;
+        LOG_WARN("playerbots.dungeonclear",
+                 "[DC:{}] event '{}' {} at step {} (kind {}, result {}) after {}ms on the step",
+                 bot->GetName(), ev.name,
+                 outcome == EventDriveOutcome::Stalled ? "stalled" : "skipped", failedStep,
+                 static_cast<uint32>(ev.steps[failedStep].kind), static_cast<uint32>(result),
+                 elapsedMs);
+    }
+    return outcome;
 }
 
 DungeonEvent const* DungeonEventExecutor::FindDueConditionalEvent(Player* bot,

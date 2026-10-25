@@ -94,6 +94,7 @@ struct DungeonEventProgress
     int32  lastLoggedStep{-1};
     int32  lastLoggedResult{-1};
     uint32 lastLogMs{0};
+    uint32 shortEndLogMs{0};  // last "event ended short" WARN (Drive), throttle
 
     // Re-base every per-activation clock for a NEW event id, leaving only the
     // fields that outlive an event (instanceId, lastDriveMs, the log throttle).
