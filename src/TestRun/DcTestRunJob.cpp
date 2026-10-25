@@ -2412,8 +2412,22 @@ void DcTestRunJob::TickMonitoring(uint32 dt)
         obs.partyWiped = !anyAlive;
         obs.wipedForMs = _wipedForMs;
 
+        // A stall reason left standing through a fight is not the run being
+        // stuck: the fight decides, and a lost one is the wipe watchdog's. The
+        // SFK tank stalled on "A gate has closed on us" while the party fought
+        // Nandos and his worgs for two minutes (tr-20261025-181859-9).
+        bool partyFighting = !tank->getAttackers().empty();
+        if (Group* group = tank->GetGroup())
+            for (GroupReference* ref = group->GetFirstMember(); ref && !partyFighting; ref = ref->next())
+                if (Player* member = ref->GetSource();
+                    member && member->GetMapId() == tank->GetMapId() && member->IsAlive() &&
+                    !member->getAttackers().empty())
+                    partyFighting = true;
+
         stallReason = ctx->GetValue<std::string&>(DcKey::StallReason)->Get();
-        if (!stallReason.empty())
+        if (!stallReason.empty() && partyFighting)
+            ;  // held, not reset: the stall resumes counting when the fight ends
+        else if (!stallReason.empty())
             _stalledForMs += dt;
         else
             _stalledForMs = 0;

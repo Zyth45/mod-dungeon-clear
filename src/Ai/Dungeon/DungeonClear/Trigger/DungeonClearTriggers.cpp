@@ -1004,6 +1004,20 @@ bool DungeonClearDoorBlockedTrigger::IsActive()
         DungeonEventExecutor::FindDueConditionalEvent(bot, context, map->GetId()) != nullptr)
         return false;
 
+    // Never pause on a door mid-fight: the pause also holds the terminal rungs,
+    // so a fight lost while paused ends as "a closed door" instead of a wipe
+    // (SFK tr-20261025-194157-81: tank dragged to the Courtyard Door with 19
+    // attackers on the party). The door is still there when the fight ends.
+    if (Group* group = bot->GetGroup())
+    {
+        for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
+            if (Player* m = ref->GetSource(); m && m->GetMapId() == bot->GetMapId() &&
+                                              m->IsAlive() && !m->getAttackers().empty())
+                return false;
+    }
+    else if (!bot->getAttackers().empty())
+        return false;
+
     // Non-empty GUID means the blocking-door value found a closed door
     // within the corridor. Empty means clear path. Polled at 500ms by the
     // value itself, so this trigger is cheap.
