@@ -73,6 +73,20 @@ public:
     // rather than an include so the follower stays a leaf header.
     static constexpr float POINT_REACHED_Z = 5.0f;
 
+    // How far UNDER a stranded route point (in plan view within POINT_REACHED)
+    // the bot must stand to have fallen through the floor rather than be on the
+    // storey below a stair. A walked leg never drops this much inside 3yd
+    // horizontally (that is a jump segment, which never gets here). Stratholme's
+    // Plagued Rat corner at (3605, -3325, 125) drops the party to z 59.8 in
+    // combat, and from there the long path to Timmy the Cruel ends 79yd short on
+    // a mesh island under the city (tr-20261025-165621-181 and five more runs
+    // parked at (3605, -3189.6, 51.8) until the 600s watchdog).
+    static constexpr float FELL_THROUGH_DZ = 30.0f;
+    static constexpr bool FellThroughFloor(float botZ, float pointZ)
+    {
+        return pointZ - botZ >= FELL_THROUGH_DZ;
+    }
+
     // Perpendicular-distance threshold for off-path detection.
     static constexpr float OFF_PATH_THRESHOLD = 6.0f;
 

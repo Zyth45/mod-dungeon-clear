@@ -2397,6 +2397,22 @@ bool DungeonClearAdvanceAction::Execute(Event /*event*/)
                      "({:.1f},{:.1f},{:.1f}) -> skipped to seg {} pt {}",
                      bot->GetName(), bot->GetPositionZ() - skipped.z,
                      skipped.x, skipped.y, skipped.z, follower.segmentIdx, follower.pointIdx);
+            // Fell through the floor (see FELL_THROUGH_DZ): no route from down there
+            // leads back, so walking on only re-paths from the hole and dead-ends.
+            // Put the tank back on the walked point it fell from; the stranded-member
+            // recovery brings the party up to it.
+            if (DungeonPathFollower::FellThroughFloor(bot->GetPositionZ(), skipped.z) &&
+                !bot->GetVehicle())
+            {
+                LOG_WARN("playerbots.dungeonclear",
+                         "[DC:{}] fell through the floor: {:.1f}yd under route point "
+                         "({:.1f},{:.1f},{:.1f}) -> near-teleport back onto it",
+                         bot->GetName(), skipped.z - bot->GetPositionZ(), skipped.x, skipped.y,
+                         skipped.z);
+                bot->GetMotionMaster()->Clear();
+                bot->NearTeleportTo(skipped.x, skipped.y, skipped.z + 0.5f, bot->GetOrientation());
+                return true;
+            }
             st.hop = DungeonPathFollower::NextHop(bot, path, follower);
         }
     }

@@ -345,3 +345,13 @@ TEST(DcSplineWindowTest, OpeningLegScreenIgnoresADegenerateWindow)
     EXPECT_FALSE(DungeonPathFollower::DropOpeningLeg(0, 50.0f, 3.0f, false, false));
     EXPECT_FALSE(DungeonPathFollower::DropOpeningLeg(1, 50.0f, 3.0f, false, false));
 }
+
+// Fell through the floor: Stratholme's Plagued Rat corner drops the party from
+// z 124-125 to 59.8 (tr-20261025-165621-181, stranded cursor 64.4yd under its
+// route point). A stair storey below a point (5-15yd) is not a fall.
+TEST(DcRampArrivalTest, FellThroughFloorOnlyOnARealDrop)
+{
+    EXPECT_TRUE(DungeonPathFollower::FellThroughFloor(59.8f, 124.0f));
+    EXPECT_FALSE(DungeonPathFollower::FellThroughFloor(112.0f, 124.0f));  // the storey below
+    EXPECT_FALSE(DungeonPathFollower::FellThroughFloor(124.0f, 59.8f));   // standing ABOVE
+}
