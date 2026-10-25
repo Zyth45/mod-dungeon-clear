@@ -1375,10 +1375,14 @@ void RegisterBlackrockDepthsRoster(std::vector<BossRosterPatch>& t)
             // on PLUGGER_CAMP past the Bar Door (keeping kill-bit 14), and
             // BossPullbackRegistry has the tank drag him out to it, so he dies
             // with the party out of every patron's aggro range.
+            //
+            // orderOverride 14 (his DBC slot) pins him after Rocknot's ale run
+            // whatever the difficulty: see the CoA difficulty note on p.reorder.
             MakeBoss(DcBlackrockDepths::NPC_PLUGGER, 230, "Plugger Spazzring",
                      DcBlackrockDepths::PLUGGER_CAMP_X, DcBlackrockDepths::PLUGGER_CAMP_Y,
                      DcBlackrockDepths::PLUGGER_CAMP_Z,
-                     /*completionFrom*/ DcBlackrockDepths::NPC_PLUGGER),
+                     /*completionFrom*/ DcBlackrockDepths::NPC_PLUGGER,
+                     /*orderOverride*/ 14),
             MakeObjective(OBJ(DcBlackrockDepths::OBJ_HURLEY_KEGS), /*encounterIndex*/ 11, 230,
                           "Hurley's Kegs", DcBlackrockDepths::KEG_X, DcBlackrockDepths::KEG_Y,
                           DcBlackrockDepths::KEG_Z, /*arriveRadius*/ 8.0f, /*gateEntry*/ 0,
@@ -1434,6 +1438,29 @@ void RegisterBlackrockDepthsRoster(std::vector<BossRosterPatch>& t)
             // the two onto each other's slot; Plugger keeps 14 and goes last.
             { 9543, 12 },  // Ribbly Screwspigot
             { 9502, 13 },  // Phalanx
+            // --- the Upper City on its normal-difficulty slots, everywhere ---
+            // On the CoA heroic/mythic runs BossSpawnIndex comes out of another
+            // encounter set: no Hurley, Phalanx, Ribbly, Plugger or The Seven,
+            // and a short Upper City list on bits 0-4 (Flamelash 1, Magmus 3,
+            // Thaurissan 4: DungeonEncounter rows 36050-36054, difficulty 2).
+            // Ordered by those bits, the re-added Plugger (no bit to inherit:
+            // key 0) and Flamelash (1) came FIRST, before the Shadowforge Lock
+            // and the whole bar, so the tank walked to Plugger's camp past a
+            // Bar Door nobody had opened: every "a closed door is blocking the
+            // path" pause on the Bar Door in the NUC runs of 25/10 (all "below
+            // the heroic queue's 350 PvE power", 13-entry roster starting with
+            // Plugger, e.g. tr-20261025-060601-462), Rocknot's ale run never
+            // reached.
+            // Pin every Upper City boss to its normal slot so the travel order
+            // is the same in every difficulty; the kill bits stay whatever the
+            // difficulty's own list says.
+            { 9033, 9 },   // General Angerforge
+            { 8983, 10 },  // Golem Lord Argelmach
+            { 9537, 11 },  // Hurley Blackbreath
+            { 9156, 15 },  // Ambassador Flamelash
+            { 9035, 16 },  // Anger'rel (The Seven)
+            { 9938, 17 },  // Magmus
+            { 9019, 18 },  // Emperor Dagran Thaurissan
         };
         t.push_back(std::move(p));
     }

@@ -5,6 +5,7 @@
 
 #include "gtest/gtest.h"
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -521,6 +522,60 @@ TEST(DcRunWingTest, UpperCityRunClearsEachScriptedGateBeforeItsBoss)
         if (b.entry == 9502)
             EXPECT_EQ(b.encounterIndex, 12u) << "Phalanx keeps kill-bit 12";
     }
+}
+
+// The CoA heroic/mythic runs index BRD from another instance_encounters set: no
+// Hurley, Phalanx, Ribbly, Plugger or The Seven, and Flamelash / Magmus /
+// Thaurissan on bits 1 / 3 / 4 (DungeonEncounter rows 36051-36054). Ordered by
+// those bits, Plugger (nothing to inherit: key 0) and Flamelash went first and
+// the tank walked to Plugger's camp through a Bar Door nobody had opened
+// (tr-20261025-060601-462: 13-entry roster, Plugger first). The travel order
+// must be the normal one; the kill bits stay the difficulty's own.
+TEST(DcRunWingTest, UpperCityKeepsItsClearOrderOnACoaDifficultyIndex)
+{
+    std::vector<DungeonBossInfo> index;
+    for (DungeonBossInfo b : BrdSpawnIndex())
+    {
+        if (b.entry == 9537 || b.entry == 9502 || b.entry == 9543 || b.entry == 9499 ||
+            b.entry == 9035)
+            continue;
+        if (b.entry == 9156)
+            b.encounterIndex = 1;  // Flamelash
+        if (b.entry == 9938)
+            b.encounterIndex = 3;  // Magmus
+        if (b.entry == 9019)
+            b.encounterIndex = 4;  // Thaurissan
+        index.push_back(b);
+    }
+    std::stable_sort(index.begin(), index.end(),
+                     [](DungeonBossInfo const& l, DungeonBossInfo const& r)
+                     { return l.encounterIndex < r.encounterIndex; });
+
+    std::vector<DungeonBossInfo> const uc = DcRunWing::FilterToWing(
+        BossRosterRegistry::Apply(BRD, DcDiffKey::Dungeon(DUNGEON_DIFFICULTY_HEROIC), index),
+        *DungeonWingRegistry::FindWing(Brd(), "brd-uc"));
+
+    auto const ObjectiveEntry = [](uint32 seq) { return BossRosterRegistry::ObjectiveEntry(seq); };
+    std::vector<uint32> const want = {
+        ObjectiveEntry(2),                                   // Shadowforge Lock
+        9033, 8983,                                          // Angerforge, Argelmach
+        ObjectiveEntry(DcBlackrockDepths::OBJ_HURLEY_KEGS),
+        ObjectiveEntry(DcBlackrockDepths::OBJ_RIBBLY),
+        ObjectiveEntry(DcBlackrockDepths::OBJ_ROCKNOT),       // the Bar Door opens here
+        9499,                                                // then Plugger, past it
+        9156,                                                // Flamelash
+        ObjectiveEntry(DcBlackrockDepths::OBJ_TOMB_OF_SEVEN),
+        ObjectiveEntry(DcBlackrockDepths::OBJ_LYCEUM_SOUTH),
+        ObjectiveEntry(DcBlackrockDepths::OBJ_LYCEUM_NORTH),
+        9938, 9019,                                          // Magmus, Thaurissan
+    };
+    ASSERT_EQ(uc.size(), want.size());
+    for (std::size_t i = 0; i < want.size(); ++i)
+        EXPECT_EQ(uc[i].entry, want[i]) << "slot " << i << " is " << uc[i].name;
+
+    for (DungeonBossInfo const& b : uc)
+        if (b.entry == 9156)
+            EXPECT_EQ(b.encounterIndex, 1u) << "Flamelash keeps this difficulty's kill-bit";
 }
 
 TEST(DcRunWingTest, FallbackAtTheBrdPortalIsTheDetentionBlock)
