@@ -1934,6 +1934,28 @@ TEST(DungeonEventIntegrityTest, BlackfathomDeepsAnchorsTheWaterLegs)
         EXPECT_FLOAT_EQ((*akumai)[i].y, (*kelris)[i].y) << "anchor " << i;
         EXPECT_FLOAT_EQ((*akumai)[i].z, (*kelris)[i].z) << "anchor " << i;
     }
+
+    // Two spots the 25/10 runs froze on, kept clear of their rock (see the rows'
+    // comments): after the island's pool, Sarevess's row climbs onto the east bank
+    // instead of crossing back past the pool's south-east corner; and Gelihast's
+    // row keeps to the middle of the east arm south of the naga camp, never
+    // within 3yd of the rock face at x -612.5 between y 160 and 178.
+    std::vector<WaypointHint> const* sarevess =
+        DungeonClearRouteRegistry::Get(48, DUNGEON_DIFFICULTY_NORMAL, 4831);
+    ASSERT_NE(sarevess, nullptr);
+    bool onEastBank = false;
+    for (WaypointHint const& h : *sarevess)
+        if (h.x > -320.0f && h.y > 315.0f && h.y < 340.0f && h.z > -55.0f)
+            onEastBank = true;
+    EXPECT_TRUE(onEastBank) << "Lady Sarevess's row must cross the island's east bank";
+
+    std::vector<WaypointHint> const* gelihast =
+        DungeonClearRouteRegistry::Get(48, DUNGEON_DIFFICULTY_NORMAL, 6243);
+    ASSERT_NE(gelihast, nullptr);
+    for (WaypointHint const& h : *gelihast)
+        if (h.y > 160.0f && h.y < 180.0f && h.x < -600.0f)
+            EXPECT_GT(h.x, -609.5f) << "Gelihast anchor (" << h.x << ", " << h.y
+                                    << ") hugs the rock between the two arms";
 }
 
 // Sunken Temple (109): the Central Circle pre-clear's anchor and its ClearRadius

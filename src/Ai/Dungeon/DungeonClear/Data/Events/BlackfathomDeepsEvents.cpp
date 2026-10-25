@@ -80,6 +80,18 @@ void RegisterBlackfathomDeepsRoute()
     // SURFACE swims (13.5 and 16.9yd) through those two breaks. They stay at
     // z -56 on purpose: the swim fallback that dived for the channel floor is
     // what drowned the party at (-366, 298, -73).
+    //
+    // From the pool the row keeps to its EAST side and climbs onto the east bank
+    // (anchors 11-17), not across to the north shore. The island's own packs
+    // (the Myrmidons and Sea Witches at (-306, 318) / (-302, 330)) drag the
+    // fight onto that bank, and a tank left there was 22yd off a row that ran
+    // back through the pool: its rejoin aimed at anchor 10 across the pool's
+    // south-east corner, a rock the island mesh leaves out at (-337..-331,
+    // 288..294), and wedged on it at (-340, 291) — "Stuck off the route to
+    // Lady Sarevess", five runs on 25/10 (tr-20261025-191943-198, -191005-162,
+    // -174219-209, -133220-56, -130902-43). The bank is the island's own mesh
+    // (88 polys) all the way to the naga camp, every leg sampled on it, so a
+    // party fighting there is already on the row.
     DungeonClearRouteRegistry::Register(BFD_MAP, DUNGEON_DIFFICULTY_NORMAL, BFD_LADY_SAREVESS,
         {
             { -442.40f, 211.80f, -51.69f },  // 0  Ghamoo-ra's spawn, where he dies
@@ -93,15 +105,18 @@ void RegisterBlackfathomDeepsRoute()
             { -367.50f, 274.90f, -55.96f },  // 8  last main-mesh water before the passage
             { -357.50f, 284.00f, -55.80f },  // 9  SWIM: the passage's middle sheet
             { -345.00f, 295.40f, -55.96f },  // 10 SWIM: the island's pool
-            { -351.21f, 307.22f, -55.93f },  // 11
-            { -356.53f, 320.00f, -54.89f },  // 12 the pool's north shore
-            { -353.59f, 333.58f, -53.86f },  // 13 dry: the naga camp
-            { -350.65f, 347.15f, -52.71f },  // 14
-            { -347.71f, 360.73f, -52.99f },  // 15 by the Bruiseweed at (-331.1, 362.2)
-            { -344.77f, 374.30f, -53.53f },  // 16
-            { -338.25f, 386.17f, -52.86f },  // 17
-            { -327.07f, 394.23f, -53.83f },  // 18
-            { -315.88f, 402.29f, -54.88f },  // 19 19.7yd short of her, same floor
+            { -336.50f, 301.50f, -55.90f },  // 11 the pool's east side
+            { -326.00f, 306.00f, -55.90f },  // 12
+            { -316.00f, 312.00f, -55.40f },  // 13 its east shore
+            { -312.00f, 324.00f, -53.80f },  // 14 dry: the east bank (Myrmidon camp)
+            { -318.00f, 338.00f, -53.70f },  // 15
+            { -330.00f, 347.00f, -53.00f },  // 16
+            { -340.00f, 354.00f, -52.70f },  // 17
+            { -347.71f, 360.73f, -52.99f },  // 18 by the Bruiseweed at (-331.1, 362.2)
+            { -344.77f, 374.30f, -53.53f },  // 19
+            { -338.25f, 386.17f, -52.86f },  // 20
+            { -327.07f, 394.23f, -53.83f },  // 21
+            { -315.88f, 402.29f, -54.88f },  // 22 19.7yd short of her, same floor
         });
 
     // --- Lady Sarevess -> Gelihast -------------------------------------------
@@ -113,6 +128,14 @@ void RegisterBlackfathomDeepsRoute()
     // above the piece of lake that starts at y 77, and that piece is a mesh
     // island of its own: a party that drifts there is the "Holding near
     // Gelihast, 6yd below him" stall. This row never goes near it.
+    //
+    // South of the naga camp the floor forks round a rock: an east arm (x -611
+    // to -604 between y 160 and 178) and a west one, with no mesh between them
+    // at (-626..-612.5, 160..178). Anchors 36-38 run down the MIDDLE of the east
+    // arm. They used to hug the rock's east face (1.8yd off it at y 178), and
+    // that is where tanks froze: (-612..-614, 177..180), "off-path 3 ticks,
+    // Resnap FAILED (>45yd) -> rebuild" at ~3Hz for the last ten minutes of
+    // tr-20261025-184049-128, -134951-64 and -162420-159.
     DungeonClearRouteRegistry::Register(BFD_MAP, DUNGEON_DIFFICULTY_NORMAL, BFD_GELIHAST,
         {
             { -299.90f, 413.80f, -56.49f },  // 0  Lady Sarevess's spawn, where she dies
@@ -151,37 +174,38 @@ void RegisterBlackfathomDeepsRoute()
             { -616.60f, 214.13f, -50.84f },  // 33
             { -616.15f, 209.04f, -50.59f },  // 34 turning south
             { -613.79f, 195.54f, -51.62f },  // 35
-            { -611.44f, 182.03f, -52.99f },  // 36
-            { -609.76f, 172.39f, -54.69f },  // 37
-            { -613.31f, 159.50f, -56.02f },  // 38
-            { -619.77f, 146.82f, -57.34f },  // 39 a shallow crossing
-            { -622.45f, 141.91f, -57.08f },  // 40
-            { -626.30f, 128.00f, -56.71f },  // 41
-            { -624.99f, 113.92f, -55.43f },  // 42
-            { -624.63f, 100.09f, -56.18f },  // 43
-            { -624.01f, 96.57f, -55.90f },   // 44
-            { -620.59f, 83.53f, -55.28f },   // 45
-            { -617.40f, 74.51f, -55.43f },   // 46
-            { -612.37f, 60.43f, -55.43f },   // 47 a shallow crossing
-            { -610.30f, 45.83f, -54.52f },   // 48
-            { -604.57f, 33.58f, -51.88f },   // 49
-            { -598.83f, 21.33f, -49.10f },   // 50
-            { -589.33f, 13.33f, -46.89f },   // 51
-            { -581.13f, 1.94f, -46.65f },    // 52 into the Fallenroot corridor
-            { -568.06f, -1.50f, -45.79f },   // 53
-            { -554.17f, -1.50f, -43.81f },   // 54
-            { -540.28f, -1.50f, -41.11f },   // 55
-            { -526.39f, -1.50f, -40.87f },   // 56
-            { -512.50f, -1.50f, -44.15f },   // 57
-            { -498.60f, -1.50f, -45.18f },   // 58
-            { -489.31f, -0.20f, -46.03f },   // 59
-            { -478.30f, 9.55f, -45.06f },    // 60
-            { -470.81f, 14.43f, -44.89f },   // 61 the cave mouth
-            { -464.95f, 16.53f, -46.86f },   // 62
-            { -461.38f, 17.86f, -46.89f },   // 63 the cave's shallow sheet
-            { -449.08f, 23.22f, -47.15f },   // 64
-            { -436.95f, 29.12f, -47.43f },   // 65 by the Blindlight Oracles
-            { -424.83f, 35.01f, -47.43f },   // 66 13.5yd short of Gelihast
+            { -609.50f, 184.00f, -52.70f },  // 36 the east arm, in its middle
+            { -607.00f, 174.00f, -54.20f },  // 37
+            { -607.50f, 165.00f, -55.20f },  // 38
+            { -613.31f, 159.50f, -56.02f },  // 39
+            { -619.77f, 146.82f, -57.34f },  // 40 a shallow crossing
+            { -622.45f, 141.91f, -57.08f },  // 41
+            { -626.30f, 128.00f, -56.71f },  // 42
+            { -624.99f, 113.92f, -55.43f },  // 43
+            { -624.63f, 100.09f, -56.18f },  // 44
+            { -624.01f, 96.57f, -55.90f },   // 45
+            { -620.59f, 83.53f, -55.28f },   // 46
+            { -617.40f, 74.51f, -55.43f },   // 47
+            { -612.37f, 60.43f, -55.43f },   // 48 a shallow crossing
+            { -610.30f, 45.83f, -54.52f },   // 49
+            { -604.57f, 33.58f, -51.88f },   // 50
+            { -598.83f, 21.33f, -49.10f },   // 51
+            { -589.33f, 13.33f, -46.89f },   // 52
+            { -581.13f, 1.94f, -46.65f },    // 53 into the Fallenroot corridor
+            { -568.06f, -1.50f, -45.79f },   // 54
+            { -554.17f, -1.50f, -43.81f },   // 55
+            { -540.28f, -1.50f, -41.11f },   // 56
+            { -526.39f, -1.50f, -40.87f },   // 57
+            { -512.50f, -1.50f, -44.15f },   // 58
+            { -498.60f, -1.50f, -45.18f },   // 59
+            { -489.31f, -0.20f, -46.03f },   // 60
+            { -478.30f, 9.55f, -45.06f },    // 61
+            { -470.81f, 14.43f, -44.89f },   // 62 the cave mouth
+            { -464.95f, 16.53f, -46.86f },   // 63
+            { -461.38f, 17.86f, -46.89f },   // 64 the cave's shallow sheet
+            { -449.08f, 23.22f, -47.15f },   // 65
+            { -436.95f, 29.12f, -47.43f },   // 66 by the Blindlight Oracles
+            { -424.83f, 35.01f, -47.43f },   // 67 13.5yd short of Gelihast
         });
 
     // --- Old Serra'kis's pool -> Twilight Lord Kelris -------------------------
