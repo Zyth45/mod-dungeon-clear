@@ -15,6 +15,11 @@
 
 AC_ADD_SCRIPT("${CMAKE_CURRENT_LIST_DIR}/src")
 
+# New files added: Data/Events/BlackfathomDeepsEvents.cpp
+#   (Blackfathom Deeps, map 48 — four anchor routes, to Lady Sarevess, Gelihast,
+#    Kelris and Aku'mai, that keep the party on the main navmesh instead of the
+#    swim fallback that surfaced it under ledges and platforms.)
+
 # New files added: Data/HealLeashRegistry.{h,cpp}
 #   (per-map camp leash for the healer LOS reposition — Karazhan's Banquet Hall,
 #    where healers chasing DPS onto the ballroom floor aggroed idle packs.)

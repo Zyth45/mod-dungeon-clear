@@ -6030,4 +6030,15 @@ void RegisterHallsOfReflectionRoute();
 // what holds the engage until the party has come round to the pen's west mouth.
 void RegisterKarazhanRoute();
 
+// Blackfathom Deeps (48) — FOUR rows: Ghamoo-ra -> Lady Sarevess, Lady Sarevess
+// -> Gelihast, the Moonshrine pool -> Twilight Lord Kelris, and the same pool
+// -> Kelris's altar -> Aku'mai. The Azjol-Nerub reason, in water: the map's
+// navmesh is a set of disconnected water sheets and lake floors, a party in the
+// wrong one gets no route at all, and the swim fallback then heads straight at
+// the boss and surfaces under a ledge or a platform it cannot climb. Each row
+// starts where the party stands when the previous boss dies and crosses water
+// only where the main mesh does, except two short surface swims through the
+// mesh breaks of the passage to Lady Sarevess's island.
+void RegisterBlackfathomDeepsRoute();
+
 #endif

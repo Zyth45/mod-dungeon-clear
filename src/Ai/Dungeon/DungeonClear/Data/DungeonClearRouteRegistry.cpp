@@ -32,6 +32,7 @@ namespace
             RegisterPitOfSaronRoute();
             RegisterHallsOfReflectionRoute();
             RegisterKarazhanRoute();
+            RegisterBlackfathomDeepsRoute();
             return true;
         }();
         (void)seeded;
