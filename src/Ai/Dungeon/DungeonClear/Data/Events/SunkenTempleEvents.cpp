@@ -160,28 +160,11 @@ namespace
     constexpr float ST_MUSTER_HUMAN_MANA = 80.0f;
     constexpr float ST_MUSTER_TANK_HP = 90.0f;
 
-    // Central-circle pre-clear (event 17, before Jammal'an). Radius covers the
-    // circular floor; the floor z-band keeps the defender balconies (Z ≈ −66.8,
-    // above) and the statue/Atal'alarion pit (Z ≤ −148, below) out of a
-    // floor-level sweep.
-    //
-    // The centre is NOT the pit centre (-467, 95, -91), which the anchor and the
-    // sweep used to share. That point is over the hole down to Atal'alarion: the
-    // 109 mmtiles have no floor poly within ~5yd of it (only the pit bottom, Z
-    // -188.5), so PathGenerator found no end poly ("path ends 22-24yd short of
-    // Central Circle"), the final-approach MoveTo was refused, and ClearRadius,
-    // which only certifies "clear" within 12yd of its centre, sent the tank back
-    // at the hole on every sweep. Tanks parked at (-481..-486, 102..105), 15-19yd
-    // out, posStuck / "off-line rejoin made no progress" until the 600s watchdog
-    // (tr-20261025-171336-192, -191135-175, -135659-72, -141955-80, -154823-133:
-    // 0 of 23 objectives). The floor west of the hole is solid main-mesh ground
-    // the tanks DO cross (Finariana dragged a whelp over (-474.6, 96.4) in
-    // -171336-192), so anchor and sweep sit there, 7.6yd from the hole's centre,
-    // and the radius grows by that offset to keep the ring's east edge in.
-    constexpr float ST_CIRCLE_X = -474.6f;
-    constexpr float ST_CIRCLE_Y = 96.4f;
-    constexpr float ST_CIRCLE_Z = -94.2f;
-    constexpr float ST_CIRCLE_RADIUS = 68.0f;
+    // Central-circle pre-clear (event 17, before Jammal'an). Centre = the pit
+    // centre (matches the defender-ring centre). Radius covers the circular floor;
+    // the floor z-band keeps the defender balconies (Z ≈ −66.8, above) and the
+    // statue/Atal'alarion pit (Z ≤ −148, below) out of a floor-level sweep.
+    constexpr float ST_CIRCLE_RADIUS = 60.0f;
     constexpr float ST_CIRCLE_ZBAND = 20.0f;
     constexpr uint32 ST_CIRCLE_TIMEOUT = 120000;  // give-up valve -> pull anyway
 
@@ -606,7 +589,7 @@ void RegisterSunkenTempleEvents(std::vector<DungeonEvent>& out)
                       .Anchored(1)
                       .Persistent()
                       .Optional()
-                      .ClearRadius(ST_CIRCLE_X, ST_CIRCLE_Y, ST_CIRCLE_Z, ST_CIRCLE_RADIUS, ST_CIRCLE_ZBAND)
+                      .ClearRadius(-467.0f, 95.0f, -91.0f, ST_CIRCLE_RADIUS, ST_CIRCLE_ZBAND)
                       .Timeout(ST_CIRCLE_TIMEOUT)
                       .Build());
 
@@ -844,13 +827,12 @@ void RegisterSunkenTempleRoster(std::vector<BossRosterPatch>& t)
             // (whelps/wanderers/scalebanes); Weaver & Dreamscythe un-phase
             // and circle this floor AFTER Jammal'an dies, so it must be
             // swept FIRST. A ClearRadius event (17) clears every reachable
-            // hostile within 68yd (2D) and a 20yd floor band of the floor
-            // just west of the pit hole (see ST_CIRCLE_X) — z-banded so
-            // the upper defender balconies and the deep statue/
-            // Atal'alarion pit are excluded. arriveRadius 20
+            // hostile within 60yd (2D) and a 20yd floor band of the pit
+            // centre — z-banded so the upper defender balconies and the
+            // deep statue/Atal'alarion pit are excluded. arriveRadius 20
             // puts the tank in the circle before the clear gate evaluates.
             MakeObjective(OBJ(17), /*orderIndex*/ 1, 109, "Central Circle (pre-clear)",
-                          ST_CIRCLE_X, ST_CIRCLE_Y, ST_CIRCLE_Z, /*arriveRadius*/ 20.0f,
+                          -467.0f, 95.0f, -91.0f, /*arriveRadius*/ 20.0f,
                           /*gateEntry*/ 0, /*hook*/ 0, /*eventId*/ 17),
 
             // Required spine: Weaver + Dreamscythe (un-phased by Jammal'an).

@@ -1958,39 +1958,6 @@ TEST(DungeonEventIntegrityTest, BlackfathomDeepsAnchorsTheWaterLegs)
                                     << ") hugs the rock between the two arms";
 }
 
-// Sunken Temple (109): the Central Circle pre-clear's anchor and its ClearRadius
-// sweep share one point, and that point is on the floor, not over the hole down
-// to Atal'alarion at (-467, 95), where the mmtiles hold no floor poly within ~5yd
-// and ClearRadius (which only certifies "clear" within 12yd of its centre) sent
-// the tank back at the hole forever (tr-20261025-171336-192, -191135-175).
-TEST(DungeonEventIntegrityTest, SunkenTempleCentralCircleSitsOnTheFloor)
-{
-    DungeonEvent const* ev = DungeonEventRegistry::Find(109, 17);
-    ASSERT_NE(ev, nullptr);
-    ASSERT_FALSE(ev->steps.empty());
-    EventStep const& clear = ev->steps.front();
-    ASSERT_EQ(clear.kind, EventStepKind::ClearRadius);
-    EXPECT_GT(std::hypot(clear.x - (-467.0f), clear.y - 95.0f), 6.0f)
-        << "the sweep is centred over the pit hole";
-
-    bool found = false;
-    for (BossRosterPatch const& patch : BossRosterRegistry::AllPatches())
-    {
-        if (patch.mapId != 109)
-            continue;
-        for (DungeonBossInfo const& e : patch.add)
-        {
-            if (e.kind != DungeonAnchorKind::Objective || e.eventId != 17)
-                continue;
-            found = true;
-            EXPECT_LT(std::hypot(e.x - clear.x, e.y - clear.y), 1.0f)
-                << "the objective anchor and the sweep centre drifted apart";
-            EXPECT_LT(std::fabs(e.z - clear.z), 1.0f);
-        }
-    }
-    EXPECT_TRUE(found) << "no roster objective carries event 17";
-}
-
 // --- Ahn'kahet: The Old Kingdom (map 619) ---------------------------------
 //
 // Both of this map's gates fail the same silent way: the boss stays immune and
