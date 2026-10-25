@@ -138,6 +138,11 @@ namespace
     // down it that same run logged "80 pts, 320.7yd".
     constexpr float DC_REJOIN_CHUNKED_DISTANCE = 150.0f;
 
+    // Short hop onto the route for a bot wedged beside it (ShouldHopOntoRoute):
+    // the longest gap it covers, and the strike cycles spent before it is tried.
+    constexpr float DC_REJOIN_HOP_MAX = 12.0f;
+    constexpr uint32 DC_REJOIN_HOP_MIN_STRIKES = 2;
+
     // Slack added to a long re-entry glide's own travel time before its latch
     // expires: enough to absorb the launch tick and ordinary spline pacing, short
     // enough that a glide which dies on the way still returns the bot to the
@@ -1912,6 +1917,31 @@ DungeonClearAdvanceAction::Step DungeonClearAdvanceAction::DoOffLineRejoin(Advan
         appr.offLevelRepathSpent = true;
         appr.rejoinRefusals = 0;
         appr.longPathExpiresMs = 0;
+        ClearStall(context);
+        return Step::ReturnTrue;
+    }
+
+    // Wedged a few yards beside the route on its own level: no path starts where
+    // the bot stands, so every re-issue is refused from the same spot. Put it on
+    // the route point (see ShouldHopOntoRoute). Measured to the point itself, not
+    // to the line: that is where the bot lands.
+    float const hopDist = bot->GetExactDist2d(hop.point.x, hop.point.y);
+    if (DungeonClearMath::ShouldHopOntoRoute(hopDist, dz, DC_REJOIN_HOP_MAX,
+                                             DC_Z_LEVEL_TOLERANCE, appr.stuckCount,
+                                             DC_REJOIN_HOP_MIN_STRIKES, appr.offLineHopSpent) &&
+        !bot->GetVehicle() && !bot->IsInCombat())
+    {
+        LOG_INFO("playerbots.dungeonclear",
+                 "[DC:{}] off-line rejoin: wedged {:.1f}yd off the route to {} (dz {:.1f}) at "
+                 "({:.1f},{:.1f},{:.1f}) -> stepping {:.1f}yd onto route point "
+                 "({:.1f},{:.1f},{:.1f})",
+                 bot->GetName(), st.routeDeviation, next->name, dz, bot->GetPositionX(),
+                 bot->GetPositionY(), bot->GetPositionZ(), hopDist, hop.point.x, hop.point.y,
+                 hop.point.z);
+        appr.offLineHopSpent = true;
+        appr.rejoinRefusals = 0;
+        bot->GetMotionMaster()->Clear();
+        bot->NearTeleportTo(hop.point.x, hop.point.y, hop.point.z + 0.5f, bot->GetOrientation());
         ClearStall(context);
         return Step::ReturnTrue;
     }

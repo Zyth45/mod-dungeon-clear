@@ -220,6 +220,10 @@ struct DcApproachState
     // cursor, deviation ~0), so an episode-scoped latch would re-path forever.
     bool offLevelRepathSpent = false;
 
+    // The short hop onto the route (DungeonClearMath::ShouldHopOntoRoute) has been
+    // spent. Same lifetime as offLevelRepathSpent.
+    bool offLineHopSpent = false;
+
     // Deadline (getMSTime) while a LONG re-entry glide owns the bot; 0 = none.
     // A deliberate re-entry from far off the route reads, to every rung that
     // measures against the route, exactly like the wedge it is curing: IsOffPath
@@ -386,6 +390,7 @@ struct DcApproachState
         nudgeAttempts   = 0;   // a nudge that bought ground costs nothing
         rejoinRefusals  = 0;
         offLevelRepathSpent = false;
+        offLineHopSpent = false;
         return true;
     }
 
@@ -444,6 +449,7 @@ struct DcApproachState
         rejoinProgressBest  = std::numeric_limits<float>::max();
         rejoinRefusals      = 0;
         offLevelRepathSpent = false;
+        offLineHopSpent = false;
         rejoinGlideUntilMs  = 0;
         skirtOrbitTarget.Clear();
         avoidOrbitDir       = 0;

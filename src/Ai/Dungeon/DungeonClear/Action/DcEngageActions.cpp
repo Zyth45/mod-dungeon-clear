@@ -2525,7 +2525,29 @@ bool DcRunEventAction::Execute(Event /*event*/)
                 {
                     DcMovement::ResolveEscortConflict(bot);
                     SetPhase(context, "event");
-                    return EngageDirect(target);
+                    if (EngageDirect(target))
+                        return true;
+                    // The seek could not move the tank at its target. Handing the
+                    // tick back lets Advance walk the boss route instead, and the
+                    // door rung stands down while this event is due: Uldaman runs
+                    // sat in front of the shut Seal of Khaz'Mul for ten minutes
+                    // (tr-20261025-211748-13), the Keystone never used. A
+                    // best-effort clear keeps the tick and lets Drive run the step
+                    // clock, so it times out into the next step.
+                    if (!step.continueOnTimeout)
+                        return false;
+                    uint32 const nowMs = getMSTime();
+                    if (prog.seekFailLogMs == 0 || getMSTimeDiff(prog.seekFailLogMs, nowMs) >= 10000)
+                    {
+                        prog.seekFailLogMs = nowMs;
+                        LOG_INFO("playerbots.dungeonclear",
+                                 "[DC:{}] event '{}' step {}: cannot reach {} (entry {}) at "
+                                 "({:.1f},{:.1f},{:.1f}), {:.1f}yd -> holding the step clock",
+                                 bot->GetName(), ev->name, idx, target->GetName(),
+                                 target->GetEntry(), target->GetPositionX(),
+                                 target->GetPositionY(), target->GetPositionZ(),
+                                 bot->GetExactDist(target));
+                    }
                 }
             }
             else if (step.kind == EventStepKind::KillCreature && step.engage &&

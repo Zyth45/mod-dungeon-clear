@@ -2942,6 +2942,28 @@ TEST(DungeonClearMathTest, RepathOffLevelIgnoresARampOrStairFlight)
     EXPECT_FALSE(DungeonClearMath::ShouldRepathOffLevel(-5.0f, 5.0f, false));
 }
 
+// tr-20261025-211717-6: tank wedged 3.4yd beside the route to the Altar of the
+// Keepers, same level, re-paths all starting from the same spot.
+TEST(DungeonClearMathTest, HopOntoRouteForAShortSameLevelWedge)
+{
+    EXPECT_TRUE(DungeonClearMath::ShouldHopOntoRoute(3.4f, 0.2f, 12.0f, 5.0f, 2, 2, false));
+    EXPECT_TRUE(DungeonClearMath::ShouldHopOntoRoute(12.0f, -4.9f, 12.0f, 5.0f, 5, 2, false));
+}
+
+TEST(DungeonClearMathTest, HopOntoRouteWaitsForTheStrikesAndIsSpentOnce)
+{
+    EXPECT_FALSE(DungeonClearMath::ShouldHopOntoRoute(3.4f, 0.0f, 12.0f, 5.0f, 1, 2, false));
+    EXPECT_FALSE(DungeonClearMath::ShouldHopOntoRoute(3.4f, 0.0f, 12.0f, 5.0f, 2, 2, true));
+}
+
+TEST(DungeonClearMathTest, HopOntoRouteNeverCrossesALevelOrALongGap)
+{
+    // Off the level is the off-level re-path's case, a long gap the chunked one's.
+    EXPECT_FALSE(DungeonClearMath::ShouldHopOntoRoute(3.4f, 14.2f, 12.0f, 5.0f, 3, 2, false));
+    EXPECT_FALSE(DungeonClearMath::ShouldHopOntoRoute(12.5f, 0.0f, 12.0f, 5.0f, 3, 2, false));
+    EXPECT_FALSE(DungeonClearMath::ShouldHopOntoRoute(0.0f, 0.0f, 12.0f, 5.0f, 3, 2, false));
+}
+
 TEST(DungeonClearMathTest, RepathOffLevelIsSpentOnce)
 {
     EXPECT_FALSE(DungeonClearMath::ShouldRepathOffLevel(-14.2f, 5.0f, true));

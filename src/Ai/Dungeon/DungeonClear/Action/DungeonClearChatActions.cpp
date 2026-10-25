@@ -784,6 +784,10 @@ bool DcBossesAction::Execute(Event event)
             else if (skipped.count(gatedEntry))
                 wasSkipped = true;
         }
+        // A repeatable event is never latched either (its condition is what ends
+        // it); once the boss it opens the way to is dead, it is done.
+        else if (ev->repeatable && gatedBossKilled)
+            done = true;
         if (done)
             note += " (done)";
         else if (wasSkipped)

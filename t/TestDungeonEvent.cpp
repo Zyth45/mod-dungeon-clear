@@ -193,6 +193,52 @@ TEST(DungeonEventAdvance, RunningTimesOutRequiredStallsOptionalSkips)
               EventDriveOutcome::Skipped);
 }
 
+TEST(DungeonEventAdvance, ContinueOnTimeoutGoesOnToTheNextStep)
+{
+    // A best-effort pre-clear that runs out of time hands over to the next step
+    // of a REQUIRED event instead of stalling it (Uldaman's antechamber clear).
+    DungeonEvent ev = EventBuilder(0, 1, "e")
+                          .ClearRadius(0.0f, 0.0f, 0.0f, 50.0f, 20.0f)
+                          .Timeout(5000)
+                          .ContinueOnTimeout()
+                          .UseGO(42)
+                          .Build();
+    ASSERT_TRUE(ev.required);
+    DungeonEventProgress p = Prog(1, 0, 1000);
+    p.progressMs = 1000;
+    EXPECT_EQ(DungeonEventExecutor::Advance(ev, p, StepResult::Running, 3000, 30000),
+              EventDriveOutcome::Running);
+    EXPECT_EQ(p.stepIndex, 0u);
+    EXPECT_EQ(DungeonEventExecutor::Advance(ev, p, StepResult::Running, 7000, 30000),
+              EventDriveOutcome::Running);
+    EXPECT_EQ(p.stepIndex, 1u);          // on to the UseGO
+    EXPECT_EQ(p.stepStartMs, 7000u);
+    EXPECT_EQ(p.maxStepIndex, 1u);       // counts as forward progress
+}
+
+TEST(DungeonEventAdvance, ContinueOnTimeoutStillHonoursBlocked)
+{
+    // Only running out of time is forgiven: a step that says it cannot be done
+    // unaided still stalls.
+    DungeonEvent ev = EventBuilder(0, 1, "e").Wait(1000).Timeout(5000).ContinueOnTimeout()
+                          .Wait(1000).Build();
+    DungeonEventProgress p = Prog(1, 0, 1000);
+    EXPECT_EQ(DungeonEventExecutor::Advance(ev, p, StepResult::Blocked, 2000, 30000),
+              EventDriveOutcome::Stalled);
+    EXPECT_EQ(p.stepIndex, 0u);
+}
+
+TEST(DungeonEventAdvance, StepWithoutContinueOnTimeoutStillStalls)
+{
+    DungeonEvent ev = EventBuilder(0, 1, "e").ClearRadius(0.0f, 0.0f, 0.0f, 50.0f, 20.0f)
+                          .Timeout(5000).UseGO(42).Build();
+    DungeonEventProgress p = Prog(1, 0, 1000);
+    p.progressMs = 1000;
+    EXPECT_EQ(DungeonEventExecutor::Advance(ev, p, StepResult::Running, 7000, 30000),
+              EventDriveOutcome::Stalled);
+    EXPECT_EQ(p.stepIndex, 0u);
+}
+
 TEST(DungeonEventAdvance, DefaultTimeoutUsedWhenStepHasNone)
 {
     DungeonEvent ev = EventBuilder(0, 1, "e").Wait(1000).Build();  // step timeoutMs 0
@@ -1243,17 +1289,28 @@ TEST(DungeonEventConditional, UldamanIronayaSeal)
     EXPECT_EQ(e->activation, EventActivation::Conditional);
     EXPECT_TRUE(static_cast<bool>(e->condition));
     EXPECT_TRUE(e->required);
-    EXPECT_FALSE(e->repeatable);
+    // Never latched by a condition flicker at the antechamber mouth: it ends
+    // when the seal reads open (tr-20261025-211647-2 and friends).
+    EXPECT_TRUE(e->repeatable);
 
     ASSERT_EQ(e->steps.size(), 4u);
     EXPECT_EQ(e->steps[0].kind, EventStepKind::ClearRadius);
     EXPECT_TRUE(e->steps[0].engage);
+    // The pre-clear and the walk are best-effort: running out of time goes on to
+    // the Keystone instead of waiting for a human.
+    EXPECT_TRUE(e->steps[0].continueOnTimeout);
     EXPECT_EQ(e->steps[1].kind, EventStepKind::MoveTo);
+    EXPECT_TRUE(e->steps[1].continueOnTimeout);
     EXPECT_EQ(e->steps[2].kind, EventStepKind::UseGameObject);
     EXPECT_EQ(e->steps[2].goEntry, 124371u);            // the Keystone
+    EXPECT_FALSE(e->steps[2].continueOnTimeout);
+    EXPECT_GE(e->steps[2].radius, 60.0f);               // found from anywhere in the room
     EXPECT_EQ(e->steps[3].kind, EventStepKind::WaitForGameObjectState);
     EXPECT_EQ(e->steps[3].goEntry, 124372u);            // the Seal of Khaz'Mul
     EXPECT_EQ(e->steps[3].wantState, 0u);               // GO_STATE_ACTIVE (open)
+    // The seal stands 55yd from the Keystone: the 20yd default never sees it.
+    EXPECT_GE(e->steps[3].radius, 60.0f);
+    EXPECT_GE(e->steps[3].timeoutMs, 27000u + 10000u);  // the 27s SmartAI delay
 
     // Uldaman has ONE conditional event (the Ironaya seal — its antechamber has
     // live Stonevault trash whose ClearRadius seek walks the tank in). The Altar

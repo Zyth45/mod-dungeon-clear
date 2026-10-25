@@ -276,6 +276,11 @@ struct EventStep
 
     uint32 durationMs{0};    // Wait: dwell length
     uint32 timeoutMs{0};     // 0 => EventStepTimeout config default; else per-step
+    // A best-effort step: when it runs out of time (its own timeout or the
+    // forward-progress watchdog) the event moves on to the next step instead of
+    // failing. For a pre-clear whose leftovers the next steps can live with —
+    // the step that follows is what actually does the job (Uldaman's keystone).
+    bool   continueOnTimeout{false};
     uint32 hookId{0};        // Custom -> ObjectiveHookRegistry; on a garrison MoveTo,
                              // the hook to re-run each tick WHILE it holds (see
                              // EventBuilder::WhileHolding). 0 => none.
@@ -694,6 +699,11 @@ public:
     // is dead/gone is skipped rather than waited on. Chain after the step:
     //   .Gossip(npc, 0).SkipIfTargetMissing()
     EventBuilder& SkipIfTargetMissing();
+
+    // Mark the LAST-added step best-effort (EventStep::continueOnTimeout): on
+    // timeout the event goes on to the next step rather than stalling.
+    //   .ClearRadius(...).Timeout(120000).ContinueOnTimeout()
+    EventBuilder& ContinueOnTimeout();
 
     // Make the LAST-added Gossip step wait until its target NPC stops moving (has
     // finished a scripted walk) before talking to it. Chain after the step:

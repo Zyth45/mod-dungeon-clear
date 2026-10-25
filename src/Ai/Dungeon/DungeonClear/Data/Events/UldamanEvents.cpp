@@ -66,6 +66,12 @@ namespace
     constexpr float  ULD_ROOM_ZBAND  = 20.0f;
     constexpr uint32 ULD_ROOM_TIMEOUT = 120000;  // give-up valve on the pre-clear
 
+    // The Keystone (gameobject spawn 14393) and the time allowed to walk to it.
+    constexpr float  ULD_KEYSTONE_X = -234.69f;
+    constexpr float  ULD_KEYSTONE_Y = 239.62f;
+    constexpr float  ULD_KEYSTONE_Z = -50.91f;
+    constexpr uint32 ULD_KEYSTONE_WALK_TIMEOUT = 60000;
+
     // --- Altar of the Keepers + Altar of Archaedas (both summoning rituals) --
     // Both altars are GAMEOBJECT_TYPE_SUMMONING_RITUAL whose completion casts a
     // SEND_EVENT spell (gameobject_template Data1) on the ritual owner. The
@@ -181,28 +187,56 @@ namespace
 
 void RegisterUldamanEvents(std::vector<DungeonEvent>& out)
 {
+    // Nothing in this event waits on a human. NUC 25/10 (exe bddaf86), normal,
+    // 3 runs of ~20 ended "I can't progress the event 'Unseal Ironaya'" with
+    // the Keystone never used (tr-20261025-211647-2, -211702-4, -211748-13):
+    //   * the antechamber clear was the step that held them — a 120s required
+    //     ClearRadius stalls the run for the human when it runs out, and a
+    //     target the seek cannot walk to handed the tick back to Advance, which
+    //     parked the tank at the shut seal while the door rung stood down for
+    //     this due event. The clear is now best-effort (ContinueOnTimeout, and
+    //     DcRunEventAction keeps the tick on a refused seek): whatever is left
+    //     after 120s, the party goes on to the Keystone, as a player would.
+    //   * a one-shot conditional event latches done the moment its condition
+    //     reads false — a pull that dragged the tank south past the 120yd gate
+    //     at the antechamber mouth (seal at y 294.8, mouth at y ~178) threw it
+    //     away for good. Repeatable instead: never latched, it is due again as
+    //     soon as the party is back, and it ends for real only when the seal
+    //     reads open (the condition) — what 06c8745 wanted, without its 120s
+    //     stall.
     out.push_back(EventBuilder(70, 1, "Unseal Ironaya (Seal of Khaz'Mul)")
                       .Conditional(&UldamanIronayaSeal)
+                      .Repeatable()
                       // Render in the panel just before Ironaya (cosmetic; does not
                       // affect engine ordering — the seal is opened on her gate).
                       .PanelBeforeBoss(ULD_IRONAYA)
-                      // 1) clear the antechamber (sealed Ironaya is out of range).
+                      // 1) clear the antechamber (sealed Ironaya is out of range),
+                      //    best-effort: on timeout go on to the Keystone.
                       .ClearRadius(ULD_ROOM_X, ULD_ROOM_Y, ULD_ROOM_Z,
                                    ULD_ROOM_RADIUS, ULD_ROOM_ZBAND)
                       .Timeout(ULD_ROOM_TIMEOUT)
+                      .ContinueOnTimeout()
                       // 2) step onto the keystone (a short hop south of the room).
-                      .MoveTo(-234.69f, 239.62f, -50.91f, /*radius*/ 5.0f)
+                      //    Best-effort too: the UseGO below walks the last yards.
+                      .MoveTo(ULD_KEYSTONE_X, ULD_KEYSTONE_Y, ULD_KEYSTONE_Z, /*radius*/ 5.0f)
+                      .Timeout(ULD_KEYSTONE_WALK_TIMEOUT)
+                      .ContinueOnTimeout()
                       // 3) use the keystone -> SmartAI opens the seal + unseals
                       //    Ironaya. UseGO is idempotent (skips an already-used GO),
                       //    so a combat tick-gap re-running the step list is safe.
-                      .UseGO(ULD_KEYSTONE, /*searchRadius*/ 10.0f)
+                      //    Searched room-wide so a tank the walk left short still
+                      //    finds it (UseGO walks into 5yd itself).
+                      .UseGO(ULD_KEYSTONE, /*searchRadius*/ ULD_SCAN)
+                      .Timeout(ULD_KEYSTONE_WALK_TIMEOUT)
                       // 4) wait for the seal to open. The keystone's SmartAI opens
                       //    it on a 27s CREATE_TIMED_EVENT (the door "rumbles open"
                       //    delay), NOT synchronously on the click — so the timeout
                       //    must clear 27s with margin (live-verified: a 10s timeout
                       //    spuriously "stalled" until Ironaya unsealed at +27s).
+                      //    The seal stands 55yd north of the keystone: search wide
+                      //    (the 20yd default never sees it from the keystone).
                       .WaitForGOState(ULD_SEAL_DOOR, /*GO_STATE_ACTIVE*/ 0,
-                                      /*timeout*/ 45000)
+                                      /*timeout*/ 45000, /*searchRadius*/ ULD_SCAN)
                       .Build());
 
     // --- Altar of the Keepers (Stone Keepers) — ANCHORED -------------------

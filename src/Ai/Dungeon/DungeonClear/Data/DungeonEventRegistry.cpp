@@ -140,6 +140,13 @@ EventBuilder& EventBuilder::Timeout(uint32 ms)
     return *this;
 }
 
+EventBuilder& EventBuilder::ContinueOnTimeout()
+{
+    if (!_ev.steps.empty())
+        _ev.steps.back().continueOnTimeout = true;
+    return *this;
+}
+
 EventBuilder& EventBuilder::SkipIfTargetMissing()
 {
     if (!_ev.steps.empty())

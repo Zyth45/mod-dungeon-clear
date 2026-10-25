@@ -1340,6 +1340,21 @@ namespace DungeonClearMath
         return !alreadySpent && std::fabs(dz) > levelTolerance;
     }
 
+    // Whether a stalled rejoin should step the bot straight onto its route point.
+    // A tank wedged a few yards beside the route on its own level (Uldaman, on the
+    // way to the Altar of the Keepers, tr-20261025-211717-6: 3.4yd off, every
+    // re-path starting from the same spot, 7 strike cycles until the run stalled)
+    // is standing where no generated path starts, and no MoveTo will be accepted.
+    // A player would hop off the snag; the bot is placed on the route point. Only
+    // for a short gap on the same level, only after `minStrikes` spent cycles, and
+    // once per spell without progress.
+    inline bool ShouldHopOntoRoute(float deviation, float dz, float maxHop, float levelTolerance,
+                                   uint32 strikes, uint32 minStrikes, bool alreadySpent)
+    {
+        return !alreadySpent && strikes >= minStrikes && deviation > 0.0f &&
+               deviation <= maxHop && std::fabs(dz) <= levelTolerance;
+    }
+
     // Verdict of a stock path probe to a VERTICALLY SEPARATED boss: is the bot in
     // the boss's room / on its floor? `routed` = the probe returned NORMAL or
     // INCOMPLETE (stock had an opinion), `normal` = NORMAL, `endOnLevel` = the

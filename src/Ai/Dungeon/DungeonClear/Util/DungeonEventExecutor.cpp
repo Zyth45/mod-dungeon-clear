@@ -1396,19 +1396,31 @@ EventDriveOutcome DungeonEventExecutor::Advance(DungeonEvent const& ev, DungeonE
     // stepStartMs is re-stamped on each Done. The high-water step index is the one
     // clock a rewind cannot forge — if it has not moved in this long, the event is
     // going nowhere no matter what the individual steps keep claiming.
+    bool timedOut = false;
     if (!watchdogOwned && timeout > 0 &&
         static_cast<uint32>(nowMs - prog.progressMs) >= timeout * DC_EVENT_NO_PROGRESS_FACTOR)
+    {
         result = StepResult::Failed;
+        timedOut = true;
+    }
     else if (result == StepResult::Running)
     {
         // Escalate a step that has run too long to Failed. uint32 subtraction is
         // wrap-safe for an elapsed interval.
         if (!watchdogOwned && timeout > 0 &&
             static_cast<uint32>(nowMs - prog.stepStartMs) >= timeout)
+        {
             result = StepResult::Failed;
+            timedOut = true;
+        }
         else
             return EventDriveOutcome::Running;
     }
+
+    // A best-effort step that ran out of time hands over to the next one. The
+    // event is not wedged: the step after it is the one that does the job.
+    if (timedOut && step.continueOnTimeout)
+        result = StepResult::Done;
 
     if (result == StepResult::Done)
     {
@@ -1606,6 +1618,13 @@ EventDriveOutcome DungeonEventExecutor::Drive(Player* bot, AiObjectContext* cont
     uint32 const failedStep = prog.stepIndex;
     uint32 const elapsedMs = now - prog.stepStartMs;
     EventDriveOutcome const outcome = Advance(ev, prog, result, now, defaultTimeoutMs);
+    if (bot && result != StepResult::Done && prog.stepIndex > failedStep &&
+        failedStep < ev.steps.size())
+        LOG_INFO("playerbots.dungeonclear",
+                 "[DC:{}] event '{}' step {} (kind {}) ran out of time after {}ms -> "
+                 "best-effort, going on to step {}",
+                 bot->GetName(), ev.name, failedStep,
+                 static_cast<uint32>(ev.steps[failedStep].kind), elapsedMs, prog.stepIndex);
     // The step that ended the event short is otherwise visible only at DEBUG:
     // tr-20261025-161651-157 stalled on "Lyceum: North Brazier" with no INFO line
     // saying whether the keeper hunt or the walk to the brazier had run out.
