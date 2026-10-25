@@ -355,6 +355,15 @@ namespace
         // summons (also 8901) are fought wherever he calls them.
         { 230, 8901, 1275.0f, 1480.0f, -560.0f, -305.0f },  // Blackrock Depths — Anvilrage Reservist, Lyceum only
 
+        // --- Shadowfang Keep (33): the Love is in the Air vial bunnies --------
+        //
+        // Class 1. The Crown Chemical Co. event leaves its [DND] Valentine Boss -
+        // Vial Bunny (36530) triggers around the courtyard: hostile, IMMUNE, never
+        // die. Apothecary Hummel's Lingering Fumes only walks him to one. A
+        // picker that proposes one pulls a fight that cannot end (see the
+        // matching DcCombatPurgeRegistry row).
+        { 33, 36530 },  // Shadowfang Keep — [DND] Valentine Boss - Vial Bunny (immune trigger)
+
         // --- Upper Blackrock Spire (229): the Rookery Whelps ------------------
         //
         // Class 2. A Rookery Whelp (10161, level 56-57, rank 0) exists only

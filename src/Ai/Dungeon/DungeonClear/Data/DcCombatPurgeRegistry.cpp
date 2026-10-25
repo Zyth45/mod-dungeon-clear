@@ -88,8 +88,20 @@ namespace
     // drakes during his encounter. Evading only, for the Slad'ran reason: an
     // Always row would despawn live adds out of a fight the riders are winning;
     // an evading whelp is one left over after it.
+    //
+    // Shadowfang Keep (33) — [DND] Valentine Boss - Vial Bunny (36530).
+    //
+    // Holiday triggers of the Apothecary Hummel event, standing around the
+    // courtyard: hostile, IMMUNE, they never die and never evade. Once one holds
+    // a CombatReference on a party member the party is flagged for good: no rest,
+    // no out-of-combat resurrection, partyNotReady for ever. Measured on
+    // tr-20261025-164817-177 (Silval and Ashinaris held by five bunnies at
+    // 0.1-17yd, two dead members never rezzed, 600s watchdog),
+    // tr-20261025-192328-65 (four members held, three bunnies each). Always:
+    // there is no state in which fighting a trigger is the encounter.
     DcCombatPurgeRow const kRows[] =
     {
+        { 33, 36530, DcCombatPurgeWhen::Always },    // Shadowfang Keep — [DND] Valentine Boss - Vial Bunny (immune holiday trigger)
         { 578, 27638, DcCombatPurgeWhen::Always },   // The Oculus — Azure Ring Guardian (flying picket, unreachable on foot)
         { 578, 28276, DcCombatPurgeWhen::Evading },  // The Oculus — Greater Ley-Whelp (Eregos add, outlives his evade)
         { 604, 29982, DcCombatPurgeWhen::Always },   // Gundrak — Drakkari Raider (rhino passenger, ejected into the water at path point 3)
