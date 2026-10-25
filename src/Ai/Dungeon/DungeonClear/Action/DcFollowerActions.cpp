@@ -2318,8 +2318,17 @@ bool DungeonClearRezPartyAction::Execute(Event /*event*/)
     // over 99 seconds with the distance pinned at 86.1 -> 85.8yd — 0.3yd of net
     // progress across an open, unblocked corridor — until the 90s budget expired
     // and the run was disabled with four members alive at 100% HP.
+    // The walk-in stops inside THIS spell's own reach: a custom class's resurrect
+    // can be shorter than the 20yd comfort range (see DcRezDecision::CastRange).
+    float castRange = DC_REZ_CAST_RANGE;
+    if (uint32 const rezSpellId =
+            context->GetValue<uint32>("spell id", rezAction)->Get())
+        if (SpellInfo const* rezInfo = sSpellMgr->GetSpellInfo(rezSpellId))
+            castRange = DcRezDecision::CastRange(DC_REZ_CAST_RANGE,
+                                                 rezInfo->GetMaxRange(true, bot));
+
     float const dist = bot->GetExactDist(target);
-    if (dist > DC_REZ_CAST_RANGE || !bot->IsWithinLOSInMap(target))
+    if (dist > castRange || !bot->IsWithinLOSInMap(target))
     {
         DC_PULL_TRACE("[DC:{}] rez party: approaching {}'s body ({:.1f}yd)",
                       bot->GetName(), target->GetName(), dist);

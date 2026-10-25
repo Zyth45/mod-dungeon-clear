@@ -655,3 +655,17 @@ TEST(DcRezDecisionTest, AnUnsafeFullWipeIsStillAWipe)
     EXPECT_EQ(r.outcome, Outcome::Disable);
     EXPECT_EQ(r.reason, Reason::Wipe);
 }
+
+// tr-20261025-182032-45 (Blackfathom Deeps): the rezzer parked 17.0yd from the
+// body, inside the fixed 20yd walk-in, and cast a short custom resurrect into
+// SPELL_FAILED_OUT_OF_RANGE for ten minutes. The walk-in stops inside the
+// spell's OWN max range, a margin short of its edge; a 30yd spell keeps 20.
+TEST(DcRezDecisionTest, WalkInStopsInsideTheSpellsOwnRange)
+{
+    using DcRezDecision::CastRange;
+    EXPECT_FLOAT_EQ(CastRange(20.0f, 30.0f), 20.0f);   // stock party rezzes
+    EXPECT_FLOAT_EQ(CastRange(20.0f, 15.0f), 13.0f);   // a 15yd custom rez
+    EXPECT_LT(CastRange(20.0f, 15.0f), 17.0f);          // the -45 standoff now walks
+    EXPECT_FLOAT_EQ(CastRange(20.0f, 0.0f), 20.0f);    // unknown range: unchanged
+    EXPECT_FLOAT_EQ(CastRange(20.0f, 4.0f), 3.0f);     // never below the floor
+}

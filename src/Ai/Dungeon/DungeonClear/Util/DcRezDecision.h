@@ -147,6 +147,29 @@ namespace DcRezDecision
         std::vector<std::pair<int, int>> pairs;  // {rezzerIdx, targetIdx}
     };
 
+    // How close the rezzer walks before it casts. `preferred` is the action's own
+    // comfort range (20yd, well inside the 30yd of the four stock party rezzes);
+    // `spellMaxRange` is the resurrect spell's own max range from the DBC, 0 when
+    // unknown. A shorter spell caps the walk-in a margin inside its own edge.
+    //
+    // The cap is for the custom classes' resurrects, which are not 30yd spells.
+    // Live (tr-20261025-182032-45, Blackfathom Deeps): the elected rezzer stood
+    // 17.0yd from the body — inside the fixed 20yd, so it never walked — and cast
+    // 'Defibrillate' into SPELL_FAILED_OUT_OF_RANGE every few seconds for ten
+    // minutes, until the 600s no-progress watchdog ended a run with four members
+    // alive and a free healer.
+    constexpr float kRezRangeMargin = 2.0f;
+    constexpr float kRezMinCastRange = 3.0f;
+
+    inline float CastRange(float preferred, float spellMaxRange)
+    {
+        if (spellMaxRange <= 0.0f)
+            return preferred;
+        float const cap = spellMaxRange - kRezRangeMargin;
+        float const range = cap < preferred ? cap : preferred;
+        return range < kRezMinCastRange ? kRezMinCastRange : range;
+    }
+
     // Target priority: dead healer -> dead tank -> group order. The healer
     // back up first restores the party's ability to survive the next mistake;
     // the tank next restores the run's driver.
