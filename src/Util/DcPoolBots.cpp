@@ -29,6 +29,7 @@
 #include "DungeonQueueFill/DcDungeonQueueFillPlanner.h"
 #include "TestRun/DcTestRunManager.h"
 #include "Util/DcDungeonAccess.h"
+#include "Ai/Dungeon/DungeonClear/Util/DcRunTravelGuard.h"
 
 namespace
 {
@@ -171,6 +172,7 @@ namespace DcPoolBots
         // window and the fill would time out with no visible reason.
         DcDungeonAccess::UnlockTravel(bot);
 
+        DcRunTravelGuard::AllowScope const allow;
         if (!bot->TeleportTo(spot.map, spot.x, spot.y, spot.z, spot.o))
         {
             LOG_WARN("playerbots.dungeonclear",

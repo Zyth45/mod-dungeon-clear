@@ -63,6 +63,7 @@
 #include "Lab/DcLabOracles.h"
 #include "Lab/DcLabPaths.h"
 #include "Lab/DcLabRecorder.h"
+#include "Ai/Dungeon/DungeonClear/Util/DcRunTravelGuard.h"
 
 namespace
 {
@@ -1392,6 +1393,7 @@ void DcTestRunJob::TickTeleporting()
                     if (map->IsDungeon())
                     {
                         evicting = true;
+                        DcRunTravelGuard::AllowScope const allow;
                         if (!bot->IsBeingTeleported())
                             bot->TeleportTo(bot->m_homebindMapId, bot->m_homebindX,
                                             bot->m_homebindY, bot->m_homebindZ,
@@ -2628,6 +2630,7 @@ void DcTestRunJob::ReviveAndSendHome()
         // the bind point is by construction somewhere the character may stand.
         // The entry position stays in the record either way, so a manual recall
         // to it is still possible.
+        DcRunTravelGuard::AllowScope const allow;
         if (!bot->TeleportTo(bot->m_homebindMapId, bot->m_homebindX, bot->m_homebindY,
                              bot->m_homebindZ, bot->GetOrientation()))
             LOG_WARN("playerbots.dungeonclear",

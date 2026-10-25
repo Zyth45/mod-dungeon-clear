@@ -69,6 +69,11 @@
 #include "DcModuleEnable.h"
 #include "DcStrategyGate.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcBreathGuard.h"
+#include "Ai/Dungeon/DungeonClear/Util/DcLeaderSignal.h"
+#include "Ai/Dungeon/DungeonClear/Util/DcPlayerbotCompat.h"
+#include "Ai/Dungeon/DungeonClear/Util/DcRunTravelGuard.h"
+#include "Group.h"
+#include "Map.h"
 
 // Per-class context registries — each owns its own shared static lists.
 #include "DKAiObjectContext.h"
@@ -837,8 +842,105 @@ public:
     }
 };
 
+// Keeps an all-bot party in its dungeon while the run is on. See
+// DcRunTravelGuard.h for the runs that ended on "the tank left the instance".
+class DungeonClearRunTravelGuardScript : public PlayerScript
+{
+public:
+    DungeonClearRunTravelGuardScript()
+        : PlayerScript("DungeonClearRunTravelGuardScript", {
+            PLAYERHOOK_ON_BEFORE_TELEPORT,
+            PLAYERHOOK_CAN_JOIN_IN_BATTLEGROUND_QUEUE,
+            PLAYERHOOK_CAN_JOIN_IN_ARENA_QUEUE,
+            PLAYERHOOK_CAN_BATTLEFIELD_PORT
+        }) {}
+
+    bool OnPlayerBeforeTeleport(Player* player, uint32 mapid, float /*x*/, float /*y*/,
+                                float /*z*/, float /*orientation*/, uint32 /*options*/,
+                                Unit* /*target*/) override
+    {
+        if (!DcModule::IsEnabled() || !player)
+            return true;
+        uint32 const fromMap = player->GetMapId();
+        bool const allowed = DcRunTravelGuard::AllowScope::Active();
+        if (fromMap == mapid || allowed)
+            return true;
+        if (!DcRunTravelGuard::VetoTeleport(Facts(player), fromMap, mapid, allowed))
+            return true;
+        LOG_INFO("playerbots.dungeonclear",
+                 "[DC:{}] travel guard: refused a teleport from map {} to map {} during the run",
+                 player->GetName(), fromMap, mapid);
+        return false;
+    }
+
+    bool OnPlayerCanJoinInBattlegroundQueue(Player* player, ObjectGuid /*battlemasterGuid*/,
+                                            BattlegroundTypeId /*bgTypeId*/, uint8 /*joinAsGroup*/,
+                                            GroupJoinBattlegroundResult& err) override
+    {
+        return !RefuseQueue(player, err);
+    }
+
+    bool OnPlayerCanJoinInArenaQueue(Player* player, ObjectGuid /*battlemasterGuid*/, uint8 /*arenaslot*/,
+                                     BattlegroundTypeId /*bgTypeId*/, uint8 /*joinAsGroup*/,
+                                     uint8 /*isRated*/, GroupJoinBattlegroundResult& err) override
+    {
+        return !RefuseQueue(player, err);
+    }
+
+    bool OnPlayerCanBattleFieldPort(Player* player, uint8 /*arenaType*/, BattlegroundTypeId /*bgTypeId*/,
+                                    uint8 action) override
+    {
+        if (!DcModule::IsEnabled() || !player)
+            return true;
+        if (!DcRunTravelGuard::VetoBattlefieldPort(Facts(player), action))
+            return true;
+        LOG_INFO("playerbots.dungeonclear",
+                 "[DC:{}] travel guard: refused to enter a battleground during the run",
+                 player->GetName());
+        return false;
+    }
+
+private:
+    static DcRunTravelGuard::Facts Facts(Player* player)
+    {
+        DcRunTravelGuard::Facts f;
+        f.isBot = GET_PLAYERBOT_AI(player) && !DcPlayerbotCompat::IsHumanControlled(player);
+        f.alive = player->IsAlive() && !player->HasPlayerFlag(PLAYER_FLAGS_GHOST);
+        f.partyAllBots = true;
+        if (Group* group = player->GetGroup())
+        {
+            for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
+                if (Player* member = ref->GetSource();
+                    member && DcPlayerbotCompat::IsHumanControlled(member))
+                    f.partyAllBots = false;
+        }
+        Map* map = player->FindMap();
+        if (map && map->IsDungeon() && f.isBot && f.alive && f.partyAllBots)
+        {
+            Player* owner = DcLeaderSignal::FindRunOwner(player);
+            f.runOnThisMap = owner && owner->GetMapId() == player->GetMapId() &&
+                             owner->GetInstanceId() == player->GetInstanceId();
+        }
+        return f;
+    }
+
+    static bool RefuseQueue(Player* player, GroupJoinBattlegroundResult& err)
+    {
+        if (!DcModule::IsEnabled() || !player)
+            return false;
+        if (!DcRunTravelGuard::VetoBattlegroundQueue(Facts(player)))
+            return false;
+        err = ERR_BATTLEGROUND_JOIN_FAILED;
+        LOG_INFO("playerbots.dungeonclear",
+                 "[DC:{}] travel guard: refused a battleground queue during the run",
+                 player->GetName());
+        return true;
+    }
+};
+
 void AddSC_dungeon_clear_module()
 {
+    new DungeonClearRunTravelGuardScript();
     AddSC_dc_test_run_stats();
     new DungeonClearRegistrarWorldScript();
     new DungeonClearLoginPlayerScript();
