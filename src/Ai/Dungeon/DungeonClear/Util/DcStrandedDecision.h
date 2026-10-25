@@ -131,6 +131,32 @@ namespace DcStrandedDecision
         return gateSpread > 0.0f && distToGate >= 0.0f && distToGate > gateSpread;
     }
 
+    // Recover's camp re-anchor: may the TRAIL camp (PullSetback behind the tank on
+    // walked ground) take the camp, or must the camp go on the tank itself?
+    //
+    // The rescued members land on the tank, and the camp-anchored gate then
+    // measures them from the new camp with its own spread. A trail camp farther
+    // from the tank than that spread re-strands every one of them on the spot, by
+    // construction: they read "out of range" of a camp they were just carried away
+    // from, and if they cannot walk back to it the next rescue does the same
+    // thing again. Live (tr-20261025-184547-139 and -190908-154, Lower Blackrock
+    // Spire, the ramp down to War Master Voone): the trail camp landed 25-30yd up
+    // the ramp, 13-16yd above the tank, against a spread of 25 — "0yd from the
+    // tank / 25; 25-30yd from the camp / 25", rescue after rescue, the tank
+    // holding "Waiting on X (out of range)" until the 600s watchdog.
+    //
+    // So the trail camp is kept only when it sits inside the gate spread of the
+    // tank, less the fan-out the teleport spreads the members over (kRescueFanOut).
+    // No camp gate (gateSpread <= 0) means no camp test to fail: keep the trail.
+    constexpr float kRescueFanOut = 4.0f;
+
+    inline bool TrailCampHoldsTheRescue(float trailToTank, float gateSpread)
+    {
+        if (gateSpread <= 0.0f)
+            return true;
+        return trailToTank + kRescueFanOut <= gateSpread;
+    }
+
     // The verdict. Returns recover=false (no strays) whenever the feature is off,
     // the party is in combat, the clock is unarmed / disabled, or the no-progress
     // window has not elapsed. See the header comment for the two guards.

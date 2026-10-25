@@ -344,3 +344,20 @@ TEST(DcStrandedRecoveryTest, RescueSpreadIgnoresANonPositiveGate)
     EXPECT_FLOAT_EQ(RescueSpread(25.0f, 0.0f, true), 25.0f);
     EXPECT_FLOAT_EQ(RescueSpread(25.0f, -1.0f, true), 25.0f);
 }
+
+// tr-20261025-184547-139 / -190908-154 (Lower Blackrock Spire, the ramp down to
+// War Master Voone): every rescue landed the members on the tank and re-anchored
+// the camp on the trail 25-30yd up the ramp, against a gate spread of 25, so the
+// very members just rescued read "out of range" of the new camp at once. A trail
+// camp is only kept when the rescued members, fanned out on the tank, are inside
+// the gate's spread of it.
+TEST(DcStrandedRecoveryTest, TrailCampMustHoldTheRescuedMembers)
+{
+    using DcStrandedDecision::TrailCampHoldsTheRescue;
+    EXPECT_FALSE(TrailCampHoldsTheRescue(25.0f, 25.0f));    // the LBRS ramp
+    EXPECT_FALSE(TrailCampHoldsTheRescue(30.0f, 25.0f));
+    EXPECT_FALSE(TrailCampHoldsTheRescue(22.0f, 25.0f));    // the fan-out tips it over
+    EXPECT_TRUE(TrailCampHoldsTheRescue(12.0f, 25.0f));     // a close trail camp stays
+    EXPECT_TRUE(TrailCampHoldsTheRescue(40.0f, 0.0f));      // tank-anchored: no camp test
+    EXPECT_TRUE(TrailCampHoldsTheRescue(40.0f, 100000.0f)); // waived gate
+}

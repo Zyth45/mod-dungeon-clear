@@ -379,7 +379,12 @@ namespace DcStrandedRecovery
             float const maxDrag = DcSettings::GetFloat(bot, "PullMaxDrag");
             std::optional<Position> const trail =
                 DcPullPlanner::ComputeTrailCamp(leaderAI, setback, maxDrag);
-            pull.camp = trail ? *trail : leader->GetPosition();
+            // The members were just landed on the tank: a trail camp past the
+            // gate's spread of it re-strands them all (see TrailCampHoldsTheRescue).
+            bool const keepTrail =
+                trail && DcStrandedDecision::TrailCampHoldsTheRescue(
+                             leader->GetExactDist(*trail), bounds.campSpread);
+            pull.camp = keepTrail ? *trail : leader->GetPosition();
             // A room-clear lane republishes its own camp every tick it is walked
             // (DcPullActions, "PublishCamp(pull.laneCamp"), so the re-anchor lasted
             // one tick and the party was recalled to the stranding camp again:
