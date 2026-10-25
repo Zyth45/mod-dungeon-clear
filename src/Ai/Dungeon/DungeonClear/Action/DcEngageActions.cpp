@@ -2870,15 +2870,19 @@ bool DungeonClearDoorBlockedAction::Execute(Event event)
         // all-bot party (test runs: nobody else will free him), once Rethilgore is
         // dead, open it as the prisoner would. With a player in the party the
         // pause stands: the player frees the prisoner.
+        auto allBotParty = [&]()
+        {
+            if (Group* group = bot->GetGroup())
+                for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
+                    if (Player* m = ref->GetSource(); m && !GET_PLAYERBOT_AI(m))
+                        return false;
+            return true;
+        };
+
         if (door && door->GetEntry() == 18895 && DcEngageGeometry::IsDoorClosed(door) &&
             !DcTargeting::FindLiveCreatureOnMap(bot, 3914))
         {
-            bool human = false;
-            if (Group* group = bot->GetGroup())
-                for (GroupReference* ref = group->GetFirstMember(); ref && !human; ref = ref->next())
-                    if (Player* m = ref->GetSource(); m && !GET_PLAYERBOT_AI(m))
-                        human = true;
-            if (!human)
+            if (allBotParty())
             {
                 door->SetGoState(GO_STATE_ACTIVE);
                 LOG_INFO("playerbots.dungeonclear",
@@ -2898,6 +2902,33 @@ bool DungeonClearDoorBlockedAction::Execute(Event event)
                      "[DC:{}] door-blocked: Barthilas is dead, reopening {} as his script would",
                      bot->GetName(), door->GetGUID().ToString());
             return true;
+        }
+
+        // Uldaman: the Seal of Khaz'Mul opens 27s after the Keystone (124371) is
+        // used; the same SmartAI unseals Ironaya. The "Unseal Ironaya" event does
+        // that click. On the NUC (25/10, 18 of 29 runs, e.g. tr-20261025-142357-86)
+        // the run reached the seal with the Keystone never used. In an all-bot
+        // party, use it as a player would and wait for the seal.
+        if (door && door->GetEntry() == 124372 && DcEngageGeometry::IsDoorClosed(door) &&
+            DcTargeting::FindLiveCreatureOnMap(bot, 7228) && allBotParty())
+        {
+            if (GameObject* keystone = bot->FindNearestGameObject(124371, 100.0f))
+            {
+                bool const used = keystone->GetGoState() != GO_STATE_READY;
+                if (!used && !keystone->HasGameObjectFlag(GO_FLAG_NOT_SELECTABLE))
+                {
+                    keystone->Use(bot);
+                    LOG_INFO("playerbots.dungeonclear",
+                             "[DC:{}] door-blocked: all-bot party at the Seal of Khaz'Mul, Keystone unused -> "
+                             "using it (state now {})",
+                             bot->GetName(), static_cast<uint32>(keystone->GetGoState()));
+                }
+                if (keystone->GetGoState() != GO_STATE_READY)
+                {
+                    StallDungeonClearForDoor(botAI, waitReason);
+                    return true;
+                }
+            }
         }
 
         bool const canOpen = DC_ATTEMPT_DOOR_OPEN && door &&

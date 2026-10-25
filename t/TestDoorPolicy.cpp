@@ -284,6 +284,20 @@ TEST(DcDoorPolicyTest, SteamvaultAccessPanelsAreNavigationIgnored)
     EXPECT_FALSE(DcEventDoorRegistry::IsNavigationIgnored(0));
 }
 
+// The all-bot fallbacks for the Seal of Khaz'Mul (use the Keystone, wait) and
+// Arugal's Lair (start Nandos' attack) live in the door-blocked handler: both
+// doors must keep reaching it as flagged blockers, and must never be force-opened
+// as plain doors (NUC 25/10, tr-20261025-142357-86 / tr-20261025-145829-108).
+TEST(DcDoorPolicyTest, UldamanSealAndArugalsLairReachTheDoorBlockedHandler)
+{
+    EXPECT_FALSE(DcEventDoorRegistry::IsNavigationIgnored(124372));  // Seal of Khaz'Mul
+    EXPECT_FALSE(DcEventDoorRegistry::IsNavigationIgnored(18971));   // Arugal's Lair
+    EXPECT_TRUE(DcEventDoorRegistry::IsScriptOnly(18971));
+    EXPECT_FALSE(DcEventDoorRegistry::IsKeyExempt(124372));
+    // The Keystone itself stays out of the corridor check (e0e0863).
+    EXPECT_TRUE(DcEventDoorRegistry::IsNavigationIgnored(124371));
+}
+
 // Blackrock Depths' Giant Doors are ONE machine spread over four
 // GAMEOBJECT_TYPE_DOOR entries, and only the lever is meant to be clicked. The
 // three moving parts are driven entirely by the lever's SmartAI, and their
