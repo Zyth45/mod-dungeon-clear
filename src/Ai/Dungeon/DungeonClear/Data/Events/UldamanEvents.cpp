@@ -19,10 +19,6 @@
 #include <atomic>
 #include <optional>
 #include "Ai/Dungeon/DungeonClear/DcValueKeys.h"
-#include "Ai/Dungeon/DungeonClear/Util/DungeonEventExecutor.h"
-#include "Map.h"
-
-#include <unordered_set>
 
 // --- Uldaman (map 70) — the Ironaya seal, CONDITIONAL --------------------
 // Ironaya (creature 7228, DungeonEncounter bit 2) sits behind the Seal of
@@ -105,20 +101,6 @@ namespace
     constexpr float  ULD_ARCH_ALTAR_Y = 269.05f;
     constexpr float  ULD_ARCH_ALTAR_Z = -52.15f;
 
-    constexpr uint32 ULD_SEAL_EVENT_ID = 1;
-
-    // The seal anywhere on the instance (not range-limited): true once open.
-    bool UldamanSealOpenOnMap(Player* bot)
-    {
-        Map* map = bot->GetMap();
-        if (!map)
-            return false;
-        for (auto const& kv : map->GetGameObjectBySpawnIdStore())
-            if (GameObject* go = kv.second; go && go->GetEntry() == ULD_SEAL_DOOR)
-                return go->GetGoState() != GO_STATE_READY;
-        return false;
-    }
-
     // Activation: due while the party is near the still-shut seal and Ironaya is
     // present (always spawned, just sealed). Latches DONE on completion, and also
     // reads false the instant the seal opens, so it fires exactly once.
@@ -161,22 +143,11 @@ namespace
 
         if (!ironayaIsNext)
             return false;                            // earlier bosses still up
-        if (seal && seal->GetGoState() != GO_STATE_READY)
+        if (!seal)
+            return false;                            // not near the chamber yet
+        if (seal->GetGoState() != GO_STATE_READY)
             return false;                            // already open -> done
-        if (seal && ironaya)
-            return true;
-
-        // Out of the 120yd window. Before the event was ever due that means "not
-        // there yet". Once it was due it must stay due until the seal opens: the
-        // antechamber pulls drag the tank back to camps past 120yd, and reading
-        // that as false let the completion sweep latch the event done with the
-        // Keystone never used. NUC 25/10: 18 of 29 runs then parked at the shut
-        // seal (e.g. tr-20261025-142357-86, latched at 322s, paused at 427s).
-        auto const& seenDue =
-            context->GetValue<std::unordered_set<uint32>&>(DcKey::SeenDueEvents)->Get();
-        if (!seenDue.count(DungeonEventExecutor::ConditionalLatchKey(ULD_SEAL_EVENT_ID)))
-            return false;
-        return !UldamanSealOpenOnMap(bot);
+        return ironaya != nullptr;
     }
 
     // --- Why the two altars below are ANCHORED, not CONDITIONAL --------------
@@ -210,7 +181,7 @@ namespace
 
 void RegisterUldamanEvents(std::vector<DungeonEvent>& out)
 {
-    out.push_back(EventBuilder(70, ULD_SEAL_EVENT_ID, "Unseal Ironaya (Seal of Khaz'Mul)")
+    out.push_back(EventBuilder(70, 1, "Unseal Ironaya (Seal of Khaz'Mul)")
                       .Conditional(&UldamanIronayaSeal)
                       // Render in the panel just before Ironaya (cosmetic; does not
                       // affect engine ordering — the seal is opened on her gate).
