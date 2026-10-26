@@ -9,10 +9,13 @@
 #include <vector>
 
 #include "Bag.h"
+#include "Group.h"
 #include "Item.h"
 #include "ItemTemplate.h"
 #include "Log.h"
 #include "Player.h"
+#include "PlayerbotAI.h"
+#include "Playerbots.h"
 
 #include "DcBagRoomDecision.h"
 
@@ -28,6 +31,19 @@ namespace DcBagRoom
         return bot->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, itemEntry, 1) == EQUIP_ERR_OK;
     }
 
+    // A bot playing beside a human never gives up an item on its own: the human
+    // owns that party's bags. Only an all-bot party makes room.
+    inline bool PartyIsAllBots(Player* bot)
+    {
+        Group* group = bot->GetGroup();
+        if (!group)
+            return GET_PLAYERBOT_AI(bot) != nullptr;
+        for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
+            if (Player* member = ref->GetSource(); member && !GET_PLAYERBOT_AI(member))
+                return false;
+        return true;
+    }
+
     // True when `bot` can take one `itemEntry` (it already could, or a slot was
     // freed). `why` names the event in the INFO line a sacrifice leaves.
     inline bool EnsureRoomFor(Player* bot, uint32 itemEntry, char const* why)
@@ -36,6 +52,8 @@ namespace DcBagRoom
             return false;
         if (HasRoomFor(bot, itemEntry))
             return true;
+        if (!PartyIsAllBots(bot))
+            return false;
 
         struct Where
         {
