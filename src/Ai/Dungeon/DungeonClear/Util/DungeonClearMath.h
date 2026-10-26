@@ -1355,6 +1355,44 @@ namespace DungeonClearMath
                deviation <= maxHop && std::fabs(dz) <= levelTolerance;
     }
 
+    // The off-path rung's walk resnap (DungeonPathFollower::ResnapByWalk) only
+    // proves a short walk to the route point exists, never that the bot takes it.
+    // On Blackfathom Deeps' boulder south of the naga camp the tank went back and
+    // forth between its west face and its north tip for ten minutes after a camp
+    // drag, the walk resnap re-picking anchor 37 at 11-15yd 286 times
+    // (tr-20261026-131657-92, -121707-15): the cursor never moved, so nothing
+    // counted. This watch counts the re-picks of the SAME point whose walk did not
+    // shorten by `gain` below the best seen; at `limit` it fires (and re-arms) so
+    // the caller can put the bot on the point. A healthy walk shortens on every
+    // re-pick, and a new point starts a new watch.
+    struct WalkResnapWatch
+    {
+        uint32 seg      = std::numeric_limits<uint32>::max();
+        uint32 pt       = 0;
+        float  bestWalk = std::numeric_limits<float>::max();
+        uint32 stalls   = 0;
+    };
+
+    inline bool WalkResnapStalled(WalkResnapWatch& w, uint32 seg, uint32 pt, float walked,
+                                  float gain, uint32 limit)
+    {
+        if (w.seg != seg || w.pt != pt)
+        {
+            w = WalkResnapWatch{seg, pt, walked, 0};
+            return false;
+        }
+        if (walked < w.bestWalk - gain)
+        {
+            w.bestWalk = walked;
+            w.stalls = 0;
+            return false;
+        }
+        if (++w.stalls < limit)
+            return false;
+        w.stalls = 0;
+        return true;
+    }
+
     // Verdict of a stock path probe to a VERTICALLY SEPARATED boss: is the bot in
     // the boss's room / on its floor? `routed` = the probe returned NORMAL or
     // INCOMPLETE (stock had an opinion), `normal` = NORMAL, `endOnLevel` = the

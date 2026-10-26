@@ -236,6 +236,10 @@ struct DcApproachState
     // never wedge the rung that is meant to notice.
     uint32 rejoinGlideUntilMs = 0;
 
+    // Re-picks of the same route point by the off-path walk resnap that bought no
+    // ground (DungeonClearMath::WalkResnapStalled).
+    DungeonClearMath::WalkResnapWatch walkResnapWatch;
+
     // --- chase leash (approach to a MOVING trash target) ------------------
     // A trash target is latched by GUID and read live, so a walking mob turns
     // every approach into a pursuit: the tank follows it across the room and
@@ -451,6 +455,7 @@ struct DcApproachState
         offLevelRepathSpent = false;
         offLineHopSpent = false;
         rejoinGlideUntilMs  = 0;
+        walkResnapWatch     = DungeonClearMath::WalkResnapWatch{};
         skirtOrbitTarget.Clear();
         avoidOrbitDir       = 0;
         avoidOrbitSphere.Clear();

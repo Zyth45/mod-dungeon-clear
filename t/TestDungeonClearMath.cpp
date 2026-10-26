@@ -2964,6 +2964,45 @@ TEST(DungeonClearMathTest, HopOntoRouteNeverCrossesALevelOrALongGap)
     EXPECT_FALSE(DungeonClearMath::ShouldHopOntoRoute(0.0f, 0.0f, 12.0f, 5.0f, 3, 2, false));
 }
 
+// tr-20261026-131657-92: after a camp drag the BFD tank went back and forth by the
+// boulder south of the naga camp while the walk resnap re-picked anchor 37 (seg 37
+// pt 0) at the walks the log printed, for ten minutes.
+TEST(DungeonClearMathTest, WalkResnapStallsOnTheSamePointWithNoGround)
+{
+    DungeonClearMath::WalkResnapWatch w;
+    float const walks[] = {11.9f, 14.9f, 14.1f, 14.1f, 15.1f};
+    bool fired = false;
+    for (size_t i = 0; i < 5; ++i)
+    {
+        fired = DungeonClearMath::WalkResnapStalled(w, 37, 0, walks[i], 2.0f, 4);
+        EXPECT_EQ(fired, i == 4) << i;
+    }
+    // Re-armed: it takes another full count to fire again.
+    EXPECT_FALSE(DungeonClearMath::WalkResnapStalled(w, 37, 0, 13.2f, 2.0f, 4));
+}
+
+// tr-20261026-154646-2 (DEV heroic): a real walk back after a camp drag shortens on
+// every re-pick (29.9 -> 26.6 -> 23.6yd to seg 0 pt 13) and must never fire.
+TEST(DungeonClearMathTest, WalkResnapLeavesAWalkThatShortens)
+{
+    DungeonClearMath::WalkResnapWatch w;
+    float const walks[] = {31.2f, 27.4f, 24.2f, 21.0f, 18.5f, 15.0f, 12.1f};
+    for (float walked : walks)
+        EXPECT_FALSE(DungeonClearMath::WalkResnapStalled(w, 0, 13, walked, 2.0f, 4));
+}
+
+TEST(DungeonClearMathTest, WalkResnapRestartsOnANewPoint)
+{
+    DungeonClearMath::WalkResnapWatch w;
+    for (int i = 0; i < 3; ++i)
+        EXPECT_FALSE(DungeonClearMath::WalkResnapStalled(w, 39, 0, 19.0f, 2.0f, 4));
+    // The cursor moved on: the count starts again from this point.
+    EXPECT_FALSE(DungeonClearMath::WalkResnapStalled(w, 37, 0, 12.0f, 2.0f, 4));
+    for (int i = 0; i < 3; ++i)
+        EXPECT_FALSE(DungeonClearMath::WalkResnapStalled(w, 37, 0, 12.5f, 2.0f, 4));
+    EXPECT_TRUE(DungeonClearMath::WalkResnapStalled(w, 37, 0, 12.5f, 2.0f, 4));
+}
+
 TEST(DungeonClearMathTest, RepathOffLevelIsSpentOnce)
 {
     EXPECT_FALSE(DungeonClearMath::ShouldRepathOffLevel(-14.2f, 5.0f, true));

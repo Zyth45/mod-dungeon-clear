@@ -143,6 +143,13 @@ namespace
     constexpr float DC_REJOIN_HOP_MAX = 12.0f;
     constexpr uint32 DC_REJOIN_HOP_MIN_STRIKES = 2;
 
+    // Walk resnap that never arrives (DungeonClearMath::WalkResnapStalled): the
+    // re-picks of one point without `GAIN` yards off the walk before the bot is put
+    // on it, and the longest walk that is ever replaced that way.
+    constexpr uint32 DC_WALK_RESNAP_STALL_LIMIT = 4;
+    constexpr float DC_WALK_RESNAP_GAIN = 2.0f;
+    constexpr float DC_WALK_RESNAP_STEP_MAX = 20.0f;
+
     // Slack added to a long re-entry glide's own travel time before its latch
     // expires: enough to absorb the launch tick and ordinary spline pacing, short
     // enough that a glide which dies on the way still returns the bot to the
@@ -1229,11 +1236,33 @@ void DungeonClearAdvanceAction::FillPathObs(AdvanceState& st, DungeonClearApproa
         // DungeonPathFollower::ResnapByWalk); a point a short walk away keeps the
         // cursor ahead and leaves the off-line rejoin to walk round the obstacle.
         else if (DungeonPathFollower::ResnapByWalk(bot, path, follower, straight, walked))
+        {
             LOG_INFO("playerbots.dungeonclear",
                      "[DC:{}] off-path {} ticks, no route point in sight -> cursor to seg {} "
                      "pt {}, {:.1f}yd away by a {:.1f}yd walk",
                      bot->GetName(), st.offPathTicks, follower.segmentIdx, follower.pointIdx,
                      straight, walked);
+            // The same point, again, and the walk no shorter: the bot is not taking it
+            // (see DungeonClearMath::WalkResnapStalled). The walk was just proven short
+            // and on this floor, so put the bot where it leads; the cursor then moves
+            // on from the point and the next stall, if any, is one point further.
+            float const bestWalk = appr.walkResnapWatch.bestWalk;
+            std::optional<G3D::Vector3> const onto = DungeonPathFollower::CurrentPoint(path, follower);
+            if (DungeonClearMath::WalkResnapStalled(appr.walkResnapWatch, follower.segmentIdx,
+                                                    follower.pointIdx, walked,
+                                                    DC_WALK_RESNAP_GAIN, DC_WALK_RESNAP_STALL_LIMIT) &&
+                DC_ALLOW_RECOVERY_MOVES && onto.has_value() && walked <= DC_WALK_RESNAP_STEP_MAX &&
+                !bot->IsInCombat() && !bot->GetVehicle())
+            {
+                LOG_INFO("playerbots.dungeonclear",
+                         "[DC:{}] walk resnap: seg {} pt {} re-picked {} times, walk never under "
+                         "{:.1f}yd -> stepping onto ({:.1f},{:.1f},{:.1f})",
+                         bot->GetName(), follower.segmentIdx, follower.pointIdx,
+                         DC_WALK_RESNAP_STALL_LIMIT, bestWalk, onto->x, onto->y, onto->z);
+                bot->GetMotionMaster()->Clear();
+                bot->NearTeleportTo(onto->x, onto->y, onto->z + 0.5f, bot->GetOrientation());
+            }
+        }
         else
             obs.offPath = true;
     }
