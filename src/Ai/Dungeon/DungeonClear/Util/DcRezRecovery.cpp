@@ -162,6 +162,7 @@ namespace
             m.isTankRole = PlayerbotAI::IsTank(member);
             m.isBot = GET_PLAYERBOT_AI(member) != nullptr;
             m.corpseUnsafe = m.isDead && CorpseAmongIdleHostiles(member);
+            m.drivesRun = member == owner;
             out.push_back(m);
             players.push_back(member);
         };
@@ -676,6 +677,8 @@ namespace DcRezRecovery
         // A corpse among idle hostiles is not a recovery in progress either — the
         // kernel stands down on it (UnsafeStandDown), so holding the run over it
         // would park the party with nobody walking. Same scan as the snapshot.
+        // (The leader's own corpse is held above, and the kernel never stands down
+        // on it: DcRezDecision::LeftBehind.)
         for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
         {
             Player* member = ref->GetSource();

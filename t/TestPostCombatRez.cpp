@@ -617,6 +617,35 @@ TEST(DcRezDecisionTest, TheCorpseComesBackIntoPlayOnceItIsSafe)
     EXPECT_EQ(r.targetIdx, 2);
 }
 
+TEST(DcRezDecisionTest, TheRunOwnersCorpseIsNeverLeftBehind)
+{
+    // tr-20261026-070246-317 (LBRS): the tank died mid-pull and its pack reset
+    // beside the body. Standing down there parked four survivors for ten minutes:
+    // the run holds on a dead owner, and nobody else leads the clear.
+    auto party = BaseParty();
+    party[0].isDead = true;
+    party[0].corpseUnsafe = true;
+    party[0].drivesRun = true;
+    Result const r = Decide(BaseInputs(), party);
+    EXPECT_EQ(r.outcome, Outcome::Hold);
+    EXPECT_EQ(r.reason, Reason::Recovering);
+    EXPECT_EQ(r.rezzerIdx, 1);
+    EXPECT_EQ(r.targetIdx, 0);
+    ASSERT_EQ(r.pairs.size(), 1u);
+    EXPECT_EQ(r.pairs[0], std::make_pair(1, 0));
+}
+
+TEST(DcRezDecisionTest, AnUnsafeNonOwnerTankIsStillLeftBehind)
+{
+    // The exemption is the owner's, not the tank role's.
+    auto party = BaseParty();
+    party[0].isDead = true;
+    party[0].corpseUnsafe = true;
+    Result const r = Decide(BaseInputs(), party);
+    EXPECT_EQ(r.outcome, Outcome::None);
+    EXPECT_EQ(r.reason, Reason::UnsafeStandDown);
+}
+
 TEST(DcRezDecisionTest, AnUnsafeCorpseDoesNotSaveARunWithNoRezzer)
 {
     // Both rez classes dead: the classic NoRezzer disable, unsafe or not.

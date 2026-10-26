@@ -62,7 +62,26 @@ namespace DcRezDecision
         // so a bot rezzer walking to it walks into an unpulled pack. See the
         // UnsafeStandDown branch in Decide.
         bool corpseUnsafe = false;
+        // The run's owner: the tank every other rung follows. Its corpse is never
+        // left behind as unsafe — see LeftBehind.
+        bool drivesRun = false;
     };
+
+    // A corpse the survivors may carry on without: dead, among idle hostiles, and
+    // not the run's owner. The stand-down only works because the party can clear
+    // short-handed, and it cannot without the tank that drives the clear: the
+    // glue holds the run on a dead owner no matter what (IsPending), so standing
+    // down on its corpse parks the party with nobody walking and nobody leading.
+    // tr-20261026-070246-317 (LBRS): Gegg died mid-pull, the pack went back to its
+    // spawn beside the body, the rez flipped from "Zasaruk is coming" to "carrying
+    // on without them", and four survivors stood 18yd away for ten minutes until
+    // the no-progress watchdog. The rezzer only walks to the spell's own range, so
+    // raising the owner from the edge of the pack is the run's one way forward;
+    // the recovery timeout still bounds it.
+    inline bool LeftBehind(Member const& m)
+    {
+        return m.isDead && m.corpseUnsafe && !m.drivesRun;
+    }
 
     struct Inputs
     {
@@ -183,7 +202,7 @@ namespace DcRezDecision
             int firstDead = -1, deadTank = -1;
             for (std::size_t i = 0; i < members.size(); ++i)
             {
-                if (!members[i].isDead || (skipUnsafe && members[i].corpseUnsafe))
+                if (!members[i].isDead || (skipUnsafe && LeftBehind(members[i])))
                     continue;
                 if (members[i].isHealerRole)
                     return static_cast<int>(i);
@@ -211,7 +230,7 @@ namespace DcRezDecision
             for (std::size_t i = 0; i < members.size(); ++i)
             {
                 Member const& m = members[i];
-                if (!m.isDead || m.corpseUnsafe)
+                if (!m.isDead || LeftBehind(m))
                     continue;
                 if (healerPass != m.isHealerRole)
                     continue;
@@ -438,7 +457,7 @@ namespace DcRezDecision
         {
             bool anySafeCorpse = false;
             for (Member const& m : members)
-                anySafeCorpse = anySafeCorpse || (m.isDead && !m.corpseUnsafe);
+                anySafeCorpse = anySafeCorpse || (m.isDead && !LeftBehind(m));
             if (!anySafeCorpse)
             {
                 r.targetIdx = PickTarget(members);
