@@ -14,10 +14,9 @@
 #include "ItemTemplate.h"
 #include "Log.h"
 #include "Player.h"
-#include "PlayerbotAI.h"
-#include "Playerbots.h"
 
 #include "DcBagRoomDecision.h"
+#include "Ai/Dungeon/DungeonClear/Util/DcPlayerbotCompat.h"
 
 // IMPURE side of DcBagRoomDecision: before the clear grants or loots an item an
 // event needs, make sure the bot has a slot for it, destroying the cheapest
@@ -37,9 +36,9 @@ namespace DcBagRoom
     {
         Group* group = bot->GetGroup();
         if (!group)
-            return GET_PLAYERBOT_AI(bot) != nullptr;
+            return !DcPlayerbotCompat::IsHumanControlled(bot);
         for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
-            if (Player* member = ref->GetSource(); member && !GET_PLAYERBOT_AI(member))
+            if (Player* member = ref->GetSource(); member && DcPlayerbotCompat::IsHumanControlled(member))
                 return false;
         return true;
     }
