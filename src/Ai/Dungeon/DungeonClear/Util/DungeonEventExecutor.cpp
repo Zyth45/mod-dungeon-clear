@@ -23,6 +23,7 @@
 #include "InstanceScript.h"
 #include "Map.h"
 #include "ModelIgnoreFlags.h"
+#include "Ai/Dungeon/DungeonClear/Util/DcBagRoom.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcBossStandDown.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcFormGate.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcTargeting.h"
@@ -673,6 +674,7 @@ StepResult DungeonEventExecutor::RunStep(Player* bot, AiObjectContext* context,
             // Blackened Urn under mod-individual-progression). Grant it first.
             if (step.itemId && !bot->HasItemCount(step.itemId, 1))
             {
+                DcBagRoom::EnsureRoomFor(bot, step.itemId, "event step item");
                 bot->AddItem(step.itemId, 1);
                 if (!bot->HasItemCount(step.itemId, 1))
                     return StepResult::Running;  // bags full this tick — retry
@@ -1146,6 +1148,7 @@ StepResult DungeonEventExecutor::RunStep(Player* bot, AiObjectContext* context,
             Item* item = bot->GetItemByEntry(step.itemId);
             if (!item)
             {
+                DcBagRoom::EnsureRoomFor(bot, step.itemId, "event step item");
                 bot->AddItem(step.itemId, 1);
                 item = bot->GetItemByEntry(step.itemId);
                 if (!item)
@@ -1250,6 +1253,7 @@ StepResult DungeonEventExecutor::RunStep(Player* bot, AiObjectContext* context,
             Item* item = step.itemId ? bot->GetItemByEntry(step.itemId) : nullptr;
             if (step.itemId && !item)
             {
+                DcBagRoom::EnsureRoomFor(bot, step.itemId, "event step item");
                 bot->AddItem(step.itemId, 1);
                 item = bot->GetItemByEntry(step.itemId);
             }
@@ -1323,6 +1327,7 @@ StepResult DungeonEventExecutor::RunStep(Player* bot, AiObjectContext* context,
             Item* item = bot->GetItemByEntry(step.itemId);
             if (!item)
             {
+                DcBagRoom::EnsureRoomFor(bot, step.itemId, "event step item");
                 bot->AddItem(step.itemId, 1);
                 item = bot->GetItemByEntry(step.itemId);
                 if (!item)

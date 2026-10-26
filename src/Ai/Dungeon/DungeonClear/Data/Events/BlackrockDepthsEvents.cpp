@@ -38,6 +38,7 @@
 #include "Ai/Dungeon/DungeonClear/Data/Events/BlackrockDepthsLyceum.h"
 #include "Ai/Dungeon/DungeonClear/DcValueKeys.h"
 #include "Ai/Dungeon/DungeonClear/Overrides/ObjectiveHookRegistry.h"
+#include "Ai/Dungeon/DungeonClear/Util/DcBagRoom.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcRun.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcStatusPublisher.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcTargeting.h"
@@ -574,6 +575,9 @@ namespace
     // before it settles for a fresher one already in reach. The holder trails the
     // tank by a few yards at most; past this it is not coming.
     constexpr uint32 BRD_OLDEST_TORCH_WAIT_MS = 8000;
+    // How long a torch holder is walked to the brazier before it is brought to
+    // the tank instead. A walk across the room is ~20s; the step allows 30s.
+    constexpr uint32 BRD_TORCH_FETCH_MS = 12000;
 
     bool LyceumDone(Player* bot)
     {
@@ -683,22 +687,35 @@ namespace
         return corpse;
     }
 
-    // A living member standing at `corpse` (the bot itself preferred), or null.
+    // A living member standing at `corpse`, or null. A member with a free bag
+    // slot first, then the bot itself. tr-20261026-060531-247: the tank stood on
+    // the keeper's corpse with full bags and was picked every tick — three
+    // hundred loots with EQUIP_ERR_INVENTORY_FULL while a healer with room stood
+    // beside it — and the south brazier stalled.
     Player* MemberAtCorpse(Player* bot, Creature* corpse)
     {
         Player* looter = nullptr;
+        bool looterHasRoom = false;
         ForEachLivingMember(bot, [&](Player* m)
         {
-            if (m->IsWithinDistInMap(corpse, BRD_TORCH_LOOT_REACH) && (!looter || m == bot))
+            if (!m->IsWithinDistInMap(corpse, BRD_TORCH_LOOT_REACH))
+                return;
+            bool const room = DcBagRoom::HasRoomFor(m, ITEM_SHADOWFORGE_TORCH);
+            if (!looter || (room && !looterHasRoom) || (room == looterHasRoom && m == bot))
+            {
                 looter = m;
+                looterHasRoom = room;
+            }
         });
         return looter;
     }
 
     // The real loot: the corpse's own generated loot, taken with StoreLootItem
-    // by a member standing at it (the Hakkari Blood precedent).
+    // by a member standing at it (the Hakkari Blood precedent). A looter with
+    // full bags gives up its cheapest expendable item first (DcBagRoom).
     void LootTorch(Player* bot, Player* looter, Creature* corpse, char const* when)
     {
+        DcBagRoom::EnsureRoomFor(looter, ITEM_SHADOWFORGE_TORCH, "Lyceum torch");
         InventoryResult msg = EQUIP_ERR_OK;
         looter->StoreLootItem(static_cast<uint8>(TorchSlot(corpse)), &corpse->loot, msg);
         LOG_INFO("playerbots.dungeonclear",
@@ -800,7 +817,16 @@ namespace
         if (brazier->GetGoState() != GO_STATE_READY)
             return ObjectiveArriveResult::Done;
         if (brazier->HasGameObjectFlag(GO_FLAG_NOT_SELECTABLE))
+        {
+            if (!DcRun::Of(context).Throttled(DcThrottle::BrdEventLog, 10000))
+                LOG_INFO("playerbots.dungeonclear",
+                         "[DC:{}] Lyceum — the {} brazier is not selectable yet (TYPE_LYCEUM {}): "
+                         "holding the torch", bot->GetName(),
+                         brazierEntry == GO_BRAZIER_S ? "south" : "north",
+                         DcTargeting::GetInstanceScript(bot)
+                             ? DcTargeting::GetInstanceScript(bot)->GetData(TYPE_LYCEUM) : 0u);
             return ObjectiveArriveResult::Running;  // Use() would swallow it — and the torch
+        }
 
         // SPEND THE TORCH THAT DIES FIRST. Each one runs its own 300s clock, so
         // which torch lights the south brazier decides whether the other survives
@@ -844,11 +870,44 @@ namespace
                          brazierEntry == GO_BRAZIER_S ? "south" : "north");
                 return ObjectiveArriveResult::Restart;
             }
-            if (!DcRun::Of(context).Throttled(DcThrottle::BrdTorchNudge, BRD_TORCH_NUDGE_MS))
-                oldest->holder->GetMotionMaster()->MovePoint(0, brazier->GetPositionX(),
-                                                             brazier->GetPositionY(), brazier->GetPositionZ(),
-                                                             FORCED_MOVEMENT_NONE, 0.0f, 0.0f,
-                                                             /*generatePath*/ true, false);
+            // tr-20261026-065825-315: Meresia held the north brazier's torch and
+            // the walk-over below never brought her inside BRD_BRAZIER_REACH; the
+            // step ran out of time with the tank on the stand point. Past
+            // BRD_TORCH_FETCH_MS of walking, bring the holder to the tank (who
+            // stands in reach) the way stranded-recovery does.
+            DcRunState& run = DcRun::Of(context);
+            if (!run.Throttled(DcThrottle::BrdTorchNudge, BRD_TORCH_NUDGE_MS))
+            {
+                DungeonEventProgress const& prog =
+                    context->GetValue<DungeonEventProgress&>(DcKey::EventProgress)->Get();
+                Player* holder = oldest->holder;
+                bool const fetch = holder != bot &&
+                                   getMSTimeDiff(prog.stepStartMs, getMSTime()) >= BRD_TORCH_FETCH_MS &&
+                                   bot->IsWithinDistInMap(brazier, BRD_BRAZIER_REACH);
+                if (fetch)
+                {
+                    LOG_INFO("playerbots.dungeonclear",
+                             "[DC:{}] Lyceum — {} holds the torch {:.1f}yd from the {} brazier after "
+                             "{}s of walking: teleported to the tank",
+                             bot->GetName(), holder->GetName(), holder->GetExactDist(brazier),
+                             brazierEntry == GO_BRAZIER_S ? "south" : "north",
+                             BRD_TORCH_FETCH_MS / IN_MILLISECONDS);
+                    holder->NearTeleportTo(bot->GetPositionX(), bot->GetPositionY(),
+                                           bot->GetPositionZ(), bot->GetOrientation());
+                }
+                else
+                    holder->GetMotionMaster()->MovePoint(0, brazier->GetPositionX(),
+                                                         brazier->GetPositionY(), brazier->GetPositionZ(),
+                                                         FORCED_MOVEMENT_NONE, 0.0f, 0.0f,
+                                                         /*generatePath*/ true, false);
+                if (!run.Throttled(DcThrottle::BrdEventLog, 10000))
+                    LOG_INFO("playerbots.dungeonclear",
+                             "[DC:{}] Lyceum — waiting at the {} brazier for {}'s torch ({:.1f}yd "
+                             "from it, {}s left; tank {:.1f}yd)",
+                             bot->GetName(), brazierEntry == GO_BRAZIER_S ? "south" : "north",
+                             holder->GetName(), holder->GetExactDist(brazier),
+                             oldest->leftMs / IN_MILLISECONDS, bot->GetExactDist(brazier));
+            }
             return ObjectiveArriveResult::Running;
         }
 

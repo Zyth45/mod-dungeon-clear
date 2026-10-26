@@ -6,12 +6,15 @@
 #include "ObjectiveHookRegistry.h"
 
 #include <atomic>
+#include <mutex>
 #include <optional>
+#include <unordered_map>
 #include <utility>
 
 #include "Creature.h"
 #include "CreatureAI.h"
 #include "GameObject.h"
+#include "GameObjectAI.h"
 #include "Group.h"
 #include "InstanceScript.h"
 #include "Item.h"
@@ -22,6 +25,8 @@
 #include "ServerFacade.h"
 #include "Player.h"
 #include "Spell.h"
+#include "SpellInfo.h"
+#include "SpellMgr.h"
 #include "Timer.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
@@ -32,6 +37,7 @@
 #include "Ai/Dungeon/DungeonClear/Data/DungeonBossInfo.h"
 #include "Ai/Dungeon/DungeonClear/Data/Events/DungeonEventTables.h"
 #include "Ai/Dungeon/DungeonClear/DcValueKeys.h"
+#include "Ai/Dungeon/DungeonClear/Util/DcBagRoom.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcFormGate.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcMovement.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcPlayerbotCompat.h"
@@ -121,17 +127,50 @@ namespace
     //    and interrupt ourselves every tick);
     //  - otherwise grant + use the gunpowder. Returns Running; the event's
     //    door-state gate is what confirms the open and advances.
+    //
+    // The item path is not enough on its own. Night of 26/10 (tr-20261026-
+    // 005403-18, -021102-140, -060600-252): the tank stood on the cannon for the
+    // whole 30s step, the hook returned Running every tick and the run stalled.
+    // Two of those tanks ended the night with all four bags AND the backpack
+    // full: AddItem had nowhere to put the gunpowder, so the hook waited on
+    // "bags full this tick" forever. A human in that spot frees a slot; a bot
+    // never does, so DcBagRoom frees one first. And once the item path has had
+    // DM_CANNON_ITEM_GRACE_MS without the door opening — or at once when nothing
+    // in the bags may go — fire the cannon the way the item spell would: hand
+    // spell 6250 to the
+    // cannon's own AI (SMART_EVENT_SPELLHIT -> action list 1639800, which opens
+    // the door 500ms later, summons the Squallshapers and sets the instance
+    // data). Throttled per instance by DM_CANNON_DIRECT_RETRY_MS so the action
+    // list is never restarted (and two more Squallshapers summoned) before it
+    // had the time to open the door.
     constexpr uint32 DM_GO_CANNON         = 16398;
     constexpr uint32 DM_GO_IRON_CLAD_DOOR = 16397;
     constexpr uint32 DM_ITEM_GUNPOWDER    = 5397;  // casts OPEN_LOCK spell 6250
+    constexpr uint32 DM_SPELL_GUNPOWDER   = 6250;
+    constexpr uint32 DM_CANNON_ITEM_GRACE_MS   = 8000;
+    constexpr uint32 DM_CANNON_DIRECT_RETRY_MS = 10000;
+
+    struct CannonAttempt
+    {
+        uint32 firstTryMs = 0;
+        uint32 directFireMs = 0;
+    };
+    std::mutex g_cannonMutex;
+    std::unordered_map<uint32, CannonAttempt> g_cannonAttempts;  // by instance id
 
     ObjectiveArriveResult FireDefiasCannon(Player* bot, AiObjectContext* /*context*/,
                                            DungeonBossInfo const& /*info*/)
     {
+        uint32 const instanceId = bot->GetInstanceId();
+
         // Door already open (state != READY) -> the cannon has fired.
         if (GameObject* door = bot->FindNearestGameObject(DM_GO_IRON_CLAD_DOOR, 100.0f))
             if (door->GetGoState() != GO_STATE_READY)
+            {
+                std::lock_guard<std::mutex> lock(g_cannonMutex);
+                g_cannonAttempts.erase(instanceId);
                 return ObjectiveArriveResult::Done;
+            }
 
         // The 2s gunpowder "Opening" cast is already running — let it complete.
         if (bot->IsNonMeleeSpellCast(false))
@@ -141,24 +180,59 @@ namespace
         if (!cannon)
             return ObjectiveArriveResult::Running;  // not in range yet
 
+        uint32 const now = getMSTime();
+        uint32 firstTryMs = 0;
+        uint32 directFireMs = 0;
+        {
+            std::lock_guard<std::mutex> lock(g_cannonMutex);
+            CannonAttempt& a = g_cannonAttempts[instanceId];
+            if (!a.firstTryMs)
+                a.firstTryMs = now;
+            firstTryMs = a.firstTryMs;
+            directFireMs = a.directFireMs;
+        }
+
         // Grant the gunpowder (bots never looted the chest) and use it on the
         // cannon: the item is the OPEN_LOCK key, so the spell hits and the
         // cannon's SmartAI fires.
         Item* gunpowder = bot->GetItemByEntry(DM_ITEM_GUNPOWDER);
-        if (!gunpowder)
+        if (!gunpowder && DcBagRoom::EnsureRoomFor(bot, DM_ITEM_GUNPOWDER, "Deadmines cannon"))
         {
             bot->AddItem(DM_ITEM_GUNPOWDER, 1);
             gunpowder = bot->GetItemByEntry(DM_ITEM_GUNPOWDER);
-            if (!gunpowder)
-                return ObjectiveArriveResult::Running;  // bags full this tick
         }
 
-        // Feral-form druids can't cast the item spell at all — shift back first
-        // (same gate the barrel plants use). See DcFormGate.
-        DcFormGate::DropBlockingForm(bot, gunpowder);
-        SpellCastTargets targets;
-        targets.SetGOTarget(cannon);
-        bot->CastItemUseSpell(gunpowder, targets, 0, 0);
+        bool const itemGraceOver = getMSTimeDiff(firstTryMs, now) >= DM_CANNON_ITEM_GRACE_MS;
+        if (gunpowder && !itemGraceOver)
+        {
+            // Feral-form druids can't cast the item spell at all — shift back
+            // first (same gate the barrel plants use). See DcFormGate.
+            DcFormGate::DropBlockingForm(bot, gunpowder);
+            SpellCastTargets targets;
+            targets.SetGOTarget(cannon);
+            bot->CastItemUseSpell(gunpowder, targets, 0, 0);
+            return ObjectiveArriveResult::Running;  // door-state gate confirms it
+        }
+
+        if (directFireMs && getMSTimeDiff(directFireMs, now) < DM_CANNON_DIRECT_RETRY_MS)
+            return ObjectiveArriveResult::Running;  // the action list is running
+
+        SpellInfo const* spell = sSpellMgr->GetSpellInfo(DM_SPELL_GUNPOWDER);
+        if (!spell || !cannon->AI())
+            return ObjectiveArriveResult::Running;
+
+        {
+            std::lock_guard<std::mutex> lock(g_cannonMutex);
+            g_cannonAttempts[instanceId].directFireMs = now;
+        }
+        LOG_INFO("playerbots.dungeonclear",
+                 "[DC:{}] Deadmines cannon: {} -> firing the Defias Cannon through its "
+                 "script (spell {}) so the Iron Clad Door opens",
+                 bot->GetName(),
+                 gunpowder ? "the gunpowder did not open the door in time"
+                           : "no bag room for the gunpowder",
+                 DM_SPELL_GUNPOWDER);
+        cannon->AI()->SpellHit(bot, spell);
         return ObjectiveArriveResult::Running;  // door-state gate confirms it
     }
 
@@ -664,6 +738,7 @@ namespace
     {
         if (bot->GetItemByEntry(OH_ITEM_INCENDIARY_BOMBS))
             return ObjectiveArriveResult::Done;
+        DcBagRoom::EnsureRoomFor(bot, OH_ITEM_INCENDIARY_BOMBS, "Old Hillsbrad bombs");
         bot->AddItem(OH_ITEM_INCENDIARY_BOMBS, 1);
         return bot->GetItemByEntry(OH_ITEM_INCENDIARY_BOMBS)
                    ? ObjectiveArriveResult::Done
@@ -774,6 +849,7 @@ namespace
         Item* key = bot->GetItemByEntry(MECH_ITEM_CACHE_KEY);
         if (!key)
         {
+            DcBagRoom::EnsureRoomFor(bot, MECH_ITEM_CACHE_KEY, "Mechanar cache key");
             bot->AddItem(MECH_ITEM_CACHE_KEY, 1);
             key = bot->GetItemByEntry(MECH_ITEM_CACHE_KEY);
             if (!key)
