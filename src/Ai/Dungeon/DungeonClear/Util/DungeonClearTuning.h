@@ -399,6 +399,10 @@ constexpr float DC_EVENT_GATE_BAND = 12.0f;
 // and the dynamic-pull classification.
 constexpr float DC_Z_LEVEL_TOLERANCE = 5.0f;
 
+// Longest the gathered party waits between pulls on HP/mana alone
+// (DungeonClearMath::RestWaitExpired). Drinking from empty takes ~30s.
+constexpr uint32 DC_REST_WAIT_MAX_MS = 120000;
+
 // Vertical half-band for matching a trash candidate to a leg of the corridor in
 // the blocking-trash scans. The corridor band test is otherwise 2D, so a mob at
 // the bottom of a ledge — directly under (or over) an early leg of the route in

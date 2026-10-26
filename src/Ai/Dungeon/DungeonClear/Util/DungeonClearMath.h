@@ -1409,6 +1409,17 @@ namespace DungeonClearMath
         return haveStamp && sameMap && !inCombat && distToStamp > minDist && spent < limit;
     }
 
+    // Whether a between-pulls wait on HP/mana alone has run long enough to stop
+    // waiting. Nothing else bounded it: a member whose stock engine stayed in
+    // combat mode on a stale victim never drinks (Maraudon purple,
+    // tr-20261026-070505-318: "Waiting on Duvniz (low mana)" at 53% for 15
+    // minutes), and one that does not regenerate never tops up
+    // (tr-20261026-005719-48, 75% HP until the 3h limit). `since` 0 = not waiting.
+    inline bool RestWaitExpired(uint32 since, uint32 now, uint32 maxMs)
+    {
+        return since != 0 && now - since >= maxMs;
+    }
+
     // Whether a mid-glide hazard is NEW, latching it if so. One remembered sphere
     // is not enough: a boss and its pet standing 1.4yd apart (Lethtendris and
     // Pimgib, Dire Maul East, tr-20261026-123722-57) take turns being "the first

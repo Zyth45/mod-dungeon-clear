@@ -2945,6 +2945,16 @@ TEST(DungeonClearMathTest, RepathOffLevelIgnoresARampOrStairFlight)
     EXPECT_FALSE(DungeonClearMath::ShouldRepathOffLevel(-5.0f, 5.0f, false));
 }
 
+// tr-20261026-070505-318: "Waiting on Duvniz (low mana)" for 15 minutes.
+TEST(DungeonClearMathTest, RestWaitExpiresAfterItsBudget)
+{
+    EXPECT_FALSE(DungeonClearMath::RestWaitExpired(0, 500000, 120000));
+    EXPECT_FALSE(DungeonClearMath::RestWaitExpired(1000, 120999, 120000));
+    EXPECT_TRUE(DungeonClearMath::RestWaitExpired(1000, 121000, 120000));
+    // getMSTime wraps: the elapsed interval is unsigned.
+    EXPECT_TRUE(DungeonClearMath::RestWaitExpired(0xFFFFF000u, 130000, 120000));
+}
+
 // tr-20261026-120833-39: the exhausted stuck ladder steps onto a route point
 // ahead with the same kernel as the off-line hop, one strike, 15yd at most.
 TEST(DungeonClearMathTest, LadderHopTakesASameLevelPointAhead)

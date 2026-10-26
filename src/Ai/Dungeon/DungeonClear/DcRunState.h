@@ -203,6 +203,13 @@ struct DcRunState
     uint32 musterRebuffIssuedMs = 0;  // getMSTime() the rebuff round was issued
     bool   musterRestOverride = false;
 
+    // === between-pulls rest wait (leader-owned) ===================================
+    // getMSTime() the party, gathered and out of combat, started waiting on an
+    // HP/mana floor alone (0 = not waiting), and whether that wait has been given
+    // up on. See DungeonClearMath::RestWaitExpired.
+    uint32 restWaitSinceMs = 0;
+    bool   restWaitReleased = false;
+
     // === Sunken Temple — back to the Avatar before the Shade (leader-owned) =======
     // How many times the muster before the Shade of Eranikus found him still
     // slumbering with the Avatar of Hakkar alive and sent the party back to the

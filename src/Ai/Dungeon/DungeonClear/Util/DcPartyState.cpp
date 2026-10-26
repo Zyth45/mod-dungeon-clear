@@ -438,8 +438,38 @@ bool DcPartyState::IsBetweenPullsReady(Player* bot, AiObjectContext* context, bo
         return false;
     SpreadGate const gate = GetSpreadGate(bot, context);
     RestGate const rest = GetRestGate(bot, context);
-    return IsPartyReady(bot, rest.minHp, rest.minMp, gate.maxSpread, gate.anchor,
-                        gate.maxTankGap);
+    bool const ready = IsPartyReady(bot, rest.minHp, rest.minMp, gate.maxSpread, gate.anchor,
+                                    gate.maxTankGap);
+
+    // Bound the wait on HP/mana alone (DungeonClearMath::RestWaitExpired). Only a
+    // gathered party out of combat counts; a fight or a ready party re-arms it.
+    DcRunState& run = DcRun::Of(context);
+    bool const restOnly = !ready && !bot->IsInCombat() && (rest.minHp > 0.0f || rest.minMp > 0.0f) &&
+                          IsPartyReady(bot, 0.0f, 0.0f, gate.maxSpread, gate.anchor, gate.maxTankGap);
+    if (!restOnly)
+    {
+        if (ready || bot->IsInCombat())
+        {
+            run.restWaitSinceMs = 0;
+            run.restWaitReleased = false;
+        }
+        return ready;
+    }
+    if (run.restWaitReleased)
+        return true;
+    uint32 const now = getMSTime();
+    if (run.restWaitSinceMs == 0)
+        run.restWaitSinceMs = now ? now : 1;
+    if (!DungeonClearMath::RestWaitExpired(run.restWaitSinceMs, now, DC_REST_WAIT_MAX_MS))
+        return false;
+    run.restWaitReleased = true;
+    LOG_INFO("playerbots.dungeonclear",
+             "[DC:{}] rest wait: {} for {}s -> going on without topping up",
+             bot->GetName(),
+             DescribePartyNotReady(bot, rest.minHp, rest.minMp, gate.maxSpread, gate.anchor,
+                                   gate.maxTankGap),
+             DC_REST_WAIT_MAX_MS / 1000);
+    return true;
 }
 bool DcPartyState::IsScriptedStageMustering(Player* bot, AiObjectContext* context)
 {
