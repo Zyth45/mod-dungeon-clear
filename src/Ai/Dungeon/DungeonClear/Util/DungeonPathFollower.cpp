@@ -438,19 +438,20 @@ namespace
     // LOS is the closest visible one, so we usually run 1-2 raycasts instead of
     // the full window. Forward bias on ties (later flat index wins) keeps the
     // pick from replaying corridor we already cleared.
-    bool PickNearestVisibleForward(Player* bot, ChunkedPathfinder::Result const& path,
-                                   FlatIndex from, size_t maxSteps,
-                                   DungeonFollowerState& state)
+    struct Candidate
     {
-        struct Candidate
-        {
-            uint32 seg;
-            uint32 pt;
-            G3D::Vector3 pos;
-            float dist2;
-            uint64 flatIdx;  // seg * 100000 + pt — monotonic along the route
-        };
+        uint32 seg;
+        uint32 pt;
+        G3D::Vector3 pos;
+        float dist2;
+        uint64 flatIdx;  // seg * 100000 + pt — monotonic along the route
+    };
 
+    // The points at or ahead of `from` (up to maxSteps of them) inside
+    // RESNAP_RADIUS of the bot, nearest first, forward bias on ties.
+    std::vector<Candidate> ForwardCandidates(Player* bot, ChunkedPathfinder::Result const& path,
+                                             FlatIndex from, size_t maxSteps)
+    {
         float const px = bot->GetPositionX();
         float const py = bot->GetPositionY();
         float const pz = bot->GetPositionZ();
@@ -479,9 +480,6 @@ namespace
                 break;
         }
 
-        if (candidates.empty())
-            return false;
-
         std::sort(candidates.begin(), candidates.end(),
                   [](Candidate const& a, Candidate const& b)
                   {
@@ -489,8 +487,14 @@ namespace
                           return a.dist2 < b.dist2;
                       return a.flatIdx > b.flatIdx;  // forward bias on ties
                   });
+        return candidates;
+    }
 
-        for (Candidate const& cand : candidates)
+    bool PickNearestVisibleForward(Player* bot, ChunkedPathfinder::Result const& path,
+                                   FlatIndex from, size_t maxSteps,
+                                   DungeonFollowerState& state)
+    {
+        for (Candidate const& cand : ForwardCandidates(bot, path, from, maxSteps))
         {
             if (!BotCanSee(bot, cand.pos))
                 continue;
@@ -503,6 +507,61 @@ namespace
 
         return false;
     }
+
+    // Length of a complete generated walk from the bot that ENDS on `p` (same
+    // floor, within a yard or two), or nullopt. PathGenerator clamps an off-mesh
+    // destination onto the nearest poly, so "a path came back" proves nothing;
+    // its end point does.
+    std::optional<float> WalkLengthTo(Player* bot, G3D::Vector3 const& p)
+    {
+        constexpr float END_TOLERANCE_2D = 2.5f;
+        constexpr float END_TOLERANCE_Z = 3.0f;
+
+        PathGenerator gen(bot);
+        if (!gen.CalculatePath(p.x, p.y, p.z, /*forceDest*/ false) ||
+            gen.GetPathType() != PATHFIND_NORMAL)
+            return std::nullopt;
+        Movement::PointsArray const& pts = gen.GetPath();
+        if (pts.size() < 2)
+            return std::nullopt;
+        G3D::Vector3 const& end = pts.back();
+        float const ex = end.x - p.x;
+        float const ey = end.y - p.y;
+        if (ex * ex + ey * ey > END_TOLERANCE_2D * END_TOLERANCE_2D ||
+            std::fabs(end.z - p.z) > END_TOLERANCE_Z)
+            return std::nullopt;
+        float length = 0.0f;
+        for (size_t i = 1; i < pts.size(); ++i)
+            length += (pts[i] - pts[i - 1]).length();
+        return length;
+    }
+}
+
+bool DungeonPathFollower::ResnapByWalk(Player* bot, ChunkedPathfinder::Result const& path,
+                                       DungeonFollowerState& state, float& straightOut,
+                                       float& walkedOut)
+{
+    if (!bot || path.segments.empty() || state.segmentIdx >= path.segments.size())
+        return false;
+
+    size_t probes = 0;
+    for (Candidate const& cand : ForwardCandidates(bot, path, FlatIndex{state.segmentIdx, state.pointIdx},
+                                                   RESNAP_WINDOW))
+    {
+        if (probes++ >= WALK_RESNAP_PROBES)
+            break;
+        std::optional<float> const walked = WalkLengthTo(bot, cand.pos);
+        float const straight = std::sqrt(cand.dist2);
+        if (!walked.has_value() || !WalkResnapAcceptable(straight, *walked))
+            continue;
+        state.segmentIdx = cand.seg;
+        state.pointIdx = cand.pt;
+        state.offPathTicks = 0;
+        straightOut = straight;
+        walkedOut = *walked;
+        return true;
+    }
+    return false;
 }
 
 bool DungeonPathFollower::Resnap(Player* bot, ChunkedPathfinder::Result const& path,

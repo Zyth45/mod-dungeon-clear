@@ -355,3 +355,17 @@ TEST(DcRampArrivalTest, FellThroughFloorOnlyOnARealDrop)
     EXPECT_FALSE(DungeonPathFollower::FellThroughFloor(112.0f, 124.0f));  // the storey below
     EXPECT_FALSE(DungeonPathFollower::FellThroughFloor(124.0f, 59.8f));   // standing ABOVE
 }
+
+// Walk resnap: a tank parked by a pull on the north tip of Blackfathom Deeps'
+// boulder (-615, 180) or in the west arm (-621.7, 175.6) sees no anchor of the
+// east arm, 10-15yd away round the tip (tr-20261026-090519-425). That walk is
+// a short detour; the far arm of a fold, close in plan but a long way round,
+// is not.
+TEST(DcRampArrivalTest, WalkResnapTakesADetourNotAFold)
+{
+    EXPECT_TRUE(DungeonPathFollower::WalkResnapAcceptable(14.8f, 19.0f));   // round the boulder
+    EXPECT_TRUE(DungeonPathFollower::WalkResnapAcceptable(4.0f, 11.5f));    // short leg, slack
+    EXPECT_TRUE(DungeonPathFollower::WalkResnapAcceptable(30.0f, 47.0f));   // 1.6x on a long one
+    EXPECT_FALSE(DungeonPathFollower::WalkResnapAcceptable(12.0f, 60.0f));  // a hairpin's far arm
+    EXPECT_FALSE(DungeonPathFollower::WalkResnapAcceptable(30.0f, 49.0f));
+}

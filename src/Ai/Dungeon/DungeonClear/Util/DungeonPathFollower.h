@@ -252,6 +252,34 @@ public:
     static bool Resnap(Player* bot, ChunkedPathfinder::Result const& path, DungeonFollowerState& state,
                        bool* movedOut = nullptr);
 
+    // The off-path rung's second try when Resnap finds no forward point IN SIGHT:
+    // the nearest forward points inside RESNAP_RADIUS that the bot can WALK to by
+    // a short generated path. Resnap's sightline is the right test for a fold of
+    // the route and the wrong one for a boulder: Blackfathom Deeps' fork south of
+    // the naga camp, (-626..-612.5, 160..178), hides every anchor of the east arm
+    // from a tank that a pull left on its north tip or in the west arm, 10-15yd
+    // from them by a walk round the tip. Resnap failed there, the rebuild
+    // re-seeded the cursor one anchor back, the hop read as passed, and the loop
+    // ran at ~1Hz until the 600s watchdog: every heroic/mythic run of 26/10
+    // (tr-20261026-090519-425, -094706-463 ...) and one normal (-065108-310).
+    //
+    // A fold is still refused: the walk must stay within WalkResnapAcceptable of
+    // the straight distance, which the far arm of a bend never does. At most
+    // WALK_RESNAP_PROBES path queries, nearest first. Out-params report the pick.
+    static bool ResnapByWalk(Player* bot, ChunkedPathfinder::Result const& path,
+                             DungeonFollowerState& state, float& straightOut, float& walkedOut);
+
+    static constexpr size_t WALK_RESNAP_PROBES = 3;
+    static constexpr float WALK_RESNAP_DETOUR = 1.6f;
+    static constexpr float WALK_RESNAP_SLACK = 8.0f;
+    static constexpr bool WalkResnapAcceptable(float straight, float walked)
+    {
+        float const bound = straight * WALK_RESNAP_DETOUR > straight + WALK_RESNAP_SLACK
+                                ? straight * WALK_RESNAP_DETOUR
+                                : straight + WALK_RESNAP_SLACK;
+        return walked <= bound;
+    }
+
     // Escalation for a cursor the bot has WALKED PAST: step it one point
     // forward so the follower stops aiming backward. The companion to
     // SkipStrandedPoint (which handles a point the bot is standing under), and

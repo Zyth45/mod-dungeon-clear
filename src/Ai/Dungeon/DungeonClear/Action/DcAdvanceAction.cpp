@@ -1219,12 +1219,23 @@ void DungeonClearAdvanceAction::FillPathObs(AdvanceState& st, DungeonClearApproa
         follower.offPathTicks >= DungeonPathFollower::OFF_PATH_TICK_LIMIT)
     {
         st.offPathTicks = follower.offPathTicks;  // Resnap zeroes it; carry for the log
-        if (!DungeonPathFollower::Resnap(bot, path, follower))
-            obs.offPath = true;
-        else
+        float straight = 0.0f, walked = 0.0f;
+        if (DungeonPathFollower::Resnap(bot, path, follower))
             LOG_DEBUG("playerbots.dungeonclear",
                       "[DC:{}] off-path {} ticks -> Resnapped to seg {} pt {}",
                       bot->GetName(), st.offPathTicks, follower.segmentIdx, follower.pointIdx);
+        // Nothing forward in sight: a boulder between the bot and the route is not a
+        // fold of it. A rebuild re-seeds the cursor behind the bot and loops (see
+        // DungeonPathFollower::ResnapByWalk); a point a short walk away keeps the
+        // cursor ahead and leaves the off-line rejoin to walk round the obstacle.
+        else if (DungeonPathFollower::ResnapByWalk(bot, path, follower, straight, walked))
+            LOG_INFO("playerbots.dungeonclear",
+                     "[DC:{}] off-path {} ticks, no route point in sight -> cursor to seg {} "
+                     "pt {}, {:.1f}yd away by a {:.1f}yd walk",
+                     bot->GetName(), st.offPathTicks, follower.segmentIdx, follower.pointIdx,
+                     straight, walked);
+        else
+            obs.offPath = true;
     }
 }
 
