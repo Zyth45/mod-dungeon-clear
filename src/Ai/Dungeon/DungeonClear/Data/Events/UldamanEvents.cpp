@@ -101,6 +101,7 @@ namespace
     constexpr float  ULD_KEEPER_RADIUS  = 40.0f;
     constexpr float  ULD_KEEPER_ZBAND   = 15.0f;
     constexpr uint32 ULD_KEEPER_TIMEOUT = 120000;
+    constexpr uint32 ULD_KEEPERS_KILL_TIMEOUT = 300000;
 
     // Altar of Archaedas (GO 133234), in the Temple of the Stars below the hall.
     constexpr float  ULD_ARCH_ALTAR_X = 96.48f;
@@ -271,6 +272,11 @@ void RegisterUldamanEvents(std::vector<DungeonEvent>& out)
                       //    still-stoned/immune statues) holds the party here until
                       //    none remain alive.
                       .KillCreature(ULD_STONE_KEEPER, /*count*/ 4, /*searchRadius*/ 50.0f)
+                      //    Four keepers one after the other, each with its own
+                      //    wake and Self Destruct, outlast the 30s default step
+                      //    timeout by minutes (tr-20261026-141214-136 stalled at
+                      //    30s and the last keeper died at 104s).
+                      .Timeout(ULD_KEEPERS_KILL_TIMEOUT)
                       // 5) confirm the temple door has rumbled open before the
                       //    clear advances (search wide — it sits ~36yd off centre).
                       .WaitForGOState(ULD_TEMPLE_DOOR, /*GO_STATE_ACTIVE*/ 0,

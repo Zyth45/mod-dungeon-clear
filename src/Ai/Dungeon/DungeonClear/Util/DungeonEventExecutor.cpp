@@ -1401,8 +1401,14 @@ EventDriveOutcome DungeonEventExecutor::Advance(DungeonEvent const& ev, DungeonE
     // stepStartMs is re-stamped on each Done. The high-water step index is the one
     // clock a rewind cannot forge — if it has not moved in this long, the event is
     // going nowhere no matter what the individual steps keep claiming.
+    //
+    // A Done that takes the event PAST its high-water mark is the progress this
+    // clock is waiting for, so it is never overridden. Uldaman's Stone Keepers
+    // (tr-20261026-141214-136): the fourth keeper died 104s into the kill step,
+    // the step reported Done, and the backstop turned it into a stall anyway.
     bool timedOut = false;
-    if (!watchdogOwned && timeout > 0 &&
+    bool const newHighWater = result == StepResult::Done && prog.stepIndex >= prog.maxStepIndex;
+    if (!watchdogOwned && timeout > 0 && !newHighWater &&
         static_cast<uint32>(nowMs - prog.progressMs) >= timeout * DC_EVENT_NO_PROGRESS_FACTOR)
     {
         result = StepResult::Failed;

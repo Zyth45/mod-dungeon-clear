@@ -297,6 +297,34 @@ TEST(DungeonEventAdvance, RewindLoopReDoningStepZeroIsCaughtByForwardProgress)
     FAIL() << "rewind loop never escalated: the event would run Running forever";
 }
 
+TEST(DungeonEventAdvance, ForwardProgressWatchdogNeverOverridesANewHighWaterDone)
+{
+    // tr-20261026-141214-136: the Stone Keeper kill step reported Done at 104s,
+    // past timeout * DC_EVENT_NO_PROGRESS_FACTOR, and was turned into a stall.
+    DungeonEvent ev = EventBuilder(70, 2, "e")
+                          .KillCreature(4857, 4, 50.0f)
+                          .WaitForGOState(124367, 0, 60000, 70.0f)
+                          .Build();
+    DungeonEventProgress p = Prog(2, 0, 0);
+    EXPECT_EQ(DungeonEventExecutor::Advance(ev, p, StepResult::Done, 104000, 30000),
+              EventDriveOutcome::Running);
+    EXPECT_EQ(p.stepIndex, 1u);
+}
+
+TEST(DungeonEventAdvance, UldamanKeeperKillOutlastsTheDefaultTimeout)
+{
+    DungeonEvent const* ev = DungeonEventRegistry::Find(70, 2);
+    ASSERT_TRUE(ev != nullptr);
+    bool sawKill = false;
+    for (EventStep const& s : ev->steps)
+        if (s.kind == EventStepKind::KillCreature)
+        {
+            sawKill = true;
+            EXPECT_GE(s.timeoutMs, 120000u);
+        }
+    EXPECT_TRUE(sawKill);
+}
+
 TEST(DungeonEventAdvance, ForwardProgressWatchdogDoesNotFireWhileStepsAdvance)
 {
     // The watchdog must only catch a wedge. An event whose steps keep advancing —
