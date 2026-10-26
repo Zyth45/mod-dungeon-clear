@@ -859,6 +859,32 @@ void DcTestRunJob::TickSpawning()
 
     if (_stageMs >= Scaled(SPAWN_TIMEOUT_MS))
     {
+        // A slow login is not a failed one. Night of 26/10: tr-20261026-011103-110
+        // gave up on all five roster characters at 64s and Toakna's gear line
+        // landed a few hundred log lines later; -104250-508 lost one of five
+        // the same way. Log the missing ones in again and give them a second
+        // window before calling it.
+        if (_realChars && !_spawnRetried)
+        {
+            _spawnRetried = true;
+            std::string missing;
+            for (Slot const& slot : _slots)
+            {
+                Player* bot = ObjectAccessor::FindPlayer(slot.guid);
+                if (bot && bot->IsInWorld() && GET_PLAYERBOT_AI(bot))
+                    continue;
+                if (!missing.empty())
+                    missing += ", ";
+                missing += slot.rosterName;
+                sRandomPlayerbotMgr.AddPlayerBot(slot.guid, 0);
+            }
+            LOG_INFO("playerbots.dungeonclear",
+                     "TESTRUN {} spawning: {} not in world after {}s -> login issued again, "
+                     "waiting {}s more", _record.runId, missing, _stageMs / IN_MILLISECONDS,
+                     Scaled(SPAWN_TIMEOUT_MS) / IN_MILLISECONDS);
+            _stageMs = 0;
+            return;
+        }
         if (_realChars)
         {
             // Name the character that never arrived: for a hand-picked party the

@@ -461,6 +461,7 @@ private:
     void PrepareForTeleport(Player* bot) const;
     uint32 _destInstanceId = 0;        // the copy the leader landed in; 0 until it does
     uint8 _startBounces = 0;           // Starting -> Teleporting returns (a member left the copy)
+    bool _spawnRetried = false;        // roster login re-issued once after a slow first window
     bool _dcOnIssued = false;
     // One-shot so ReassertMaster's diagnostic names the first repair per run
     // instead of once a second forever.
