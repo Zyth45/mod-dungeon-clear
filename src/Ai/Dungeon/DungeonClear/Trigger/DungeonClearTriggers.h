@@ -57,10 +57,19 @@ public:
 // pre-boss gate (e.g. "free the prisoner to open the courtyard door") preempts
 // the boss pull and the door-blocked stall. Inert when no conditional event is
 // due. See DungeonEventExecutor::FindDueConditionalEvent.
+//
+// Every tick, like the holds above: the event OWNS the leader's movement while
+// it is due, and Advance (the idle trigger, every tick) walks the boss route on
+// any tick this one is not checked. At 500 ms the two took turns: the event's
+// MoveTo / UseGO walk is skipped while a move is in flight (HopTo), Advance's
+// rejoin pulled the tank back to Ironaya's seal, and the Keystone 50yd south was
+// never reached. Every Uldaman event on the NUC on 26/10 timed out its walk to
+// the Keystone, and 11 runs sat at the seal until the 600s watchdog
+// (tr-20261026-103136-499, -100106-471, -074711-360 ...).
 class DungeonClearEventDueTrigger : public Trigger
 {
 public:
-    DungeonClearEventDueTrigger(PlayerbotAI* botAI) : Trigger(botAI, "dungeon clear event due", 500) {}
+    DungeonClearEventDueTrigger(PlayerbotAI* botAI) : Trigger(botAI, "dungeon clear event due", 1) {}
     bool IsActive() override;
 };
 
