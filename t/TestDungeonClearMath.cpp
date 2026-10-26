@@ -2945,6 +2945,15 @@ TEST(DungeonClearMathTest, RepathOffLevelIgnoresARampOrStairFlight)
     EXPECT_FALSE(DungeonClearMath::ShouldRepathOffLevel(-5.0f, 5.0f, false));
 }
 
+// tr-20261026-120833-39: the exhausted stuck ladder steps onto a route point
+// ahead with the same kernel as the off-line hop, one strike, 15yd at most.
+TEST(DungeonClearMathTest, LadderHopTakesASameLevelPointAhead)
+{
+    EXPECT_TRUE(DungeonClearMath::ShouldHopOntoRoute(9.0f, 0.4f, 15.0f, 5.0f, 1, 1, false));
+    EXPECT_FALSE(DungeonClearMath::ShouldHopOntoRoute(16.0f, 0.4f, 15.0f, 5.0f, 1, 1, false));
+    EXPECT_FALSE(DungeonClearMath::ShouldHopOntoRoute(9.0f, 6.0f, 15.0f, 5.0f, 1, 1, false));
+}
+
 // tr-20261026-125623-76: tank thrown 90yd off Stratholme's walkway, no route to
 // Maleki from the ground below; the last complete route was built up top.
 TEST(DungeonClearMathTest, ReturnToRoutableGroundAfterAFall)

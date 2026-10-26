@@ -236,6 +236,10 @@ struct DcApproachState
     bool hasRoutableFrom = false;
     uint32 routableReturns = 0;
 
+    // Route-point hops taken by an exhausted stuck ladder (DoStuckRecover).
+    // Per objective.
+    uint32 ladderHops = 0;
+
     // Deadline (getMSTime) while a LONG re-entry glide owns the bot; 0 = none.
     // A deliberate re-entry from far off the route reads, to every rung that
     // measures against the route, exactly like the wedge it is curing: IsOffPath
@@ -461,6 +465,7 @@ struct DcApproachState
         nudgeAttempts       = 0;
         partyNotReadyTicks  = 0;
         routableReturns     = 0;
+        ladderHops          = 0;
         lastPos             = Position();
         skirtOrbitDir       = 0;
         offLineLatched      = false;

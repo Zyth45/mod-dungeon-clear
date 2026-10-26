@@ -154,6 +154,12 @@ namespace
     constexpr float DC_ROUTABLE_RETURN_MIN = 15.0f;
     constexpr uint32 DC_ROUTABLE_RETURN_LIMIT = 2;
 
+    // Ladder hop (DoStuckRecover): a route point ahead at least this far along,
+    // at most DC_LADDER_HOP_MAX away, and the hops allowed per objective.
+    constexpr float DC_LADDER_HOP_MIN = 4.0f;
+    constexpr float DC_LADDER_HOP_MAX = 15.0f;
+    constexpr uint32 DC_LADDER_HOP_LIMIT = 3;
+
     // Slack added to a long re-entry glide's own travel time before its latch
     // expires: enough to absorb the launch tick and ordinary spline pacing, short
     // enough that a glide which dies on the way still returns the bot to the
@@ -1089,6 +1095,46 @@ DungeonClearAdvanceAction::Step DungeonClearAdvanceAction::DoStuckRecover(Advanc
                      bot->GetName(), appr.nudgeAttempts, DC_MAX_NUDGE_ATTEMPTS, next->name);
             DcStatusPublisher::SendAddonMessage(botAI, "CHAT\tRepathing around " + next->name + " \xe2\x80\x94 nudging onto the navmesh.");
             return Step::ReturnTrue;
+        }
+        // Every rung spent with a route that still reads complete: the tank is
+        // wedged on something the mesh does not know about. The Temple of
+        // Atal'Hakkar heroic (tr-20261026-120833-39) sat 19yd from the Central
+        // Circle for ten minutes, the ladder running out sixteen times. Out of
+        // combat, put it on the first route point ahead on its own level.
+        if (DC_ALLOW_RECOVERY_MOVES && !bot->IsInCombat() && !bot->GetVehicle() &&
+            appr.ladderHops < DC_LADDER_HOP_LIMIT)
+        {
+            ChunkedPathfinder::Result const& path =
+                context->GetValue<ChunkedPathfinder::Result&>(DcKey::LongPath)->Get();
+            DungeonFollowerState const& follower =
+                context->GetValue<DungeonFollowerState&>(DcKey::FollowerState)->Get();
+            if (follower.segmentIdx < path.segments.size())
+            {
+                std::vector<G3D::Vector3> const& line = path.segments[follower.segmentIdx].polyline;
+                for (size_t i = follower.pointIdx; i < line.size(); ++i)
+                {
+                    float const d2 = bot->GetExactDist2d(line[i].x, line[i].y);
+                    if (d2 < DC_LADDER_HOP_MIN)
+                        continue;
+                    if (!DungeonClearMath::ShouldHopOntoRoute(
+                            d2, line[i].z - bot->GetPositionZ(), DC_LADDER_HOP_MAX,
+                            DC_Z_LEVEL_TOLERANCE, 1, 1, false))
+                        break;
+                    ++appr.ladderHops;
+                    appr.nudgeAttempts = 0;
+                    LOG_INFO("playerbots.dungeonclear",
+                             "[DC:{}] stuck ladder exhausted near {} -> stepping {:.1f}yd onto "
+                             "route point ({:.1f},{:.1f},{:.1f}) (hop {}/{})",
+                             bot->GetName(), next->name, d2, line[i].x, line[i].y, line[i].z,
+                             appr.ladderHops, DC_LADDER_HOP_LIMIT);
+                    bot->GetMotionMaster()->Clear();
+                    bot->NearTeleportTo(line[i].x, line[i].y, line[i].z + 0.5f,
+                                        bot->GetOrientation());
+                    appr.longPathExpiresMs = 0;
+                    ClearStall(context);
+                    return Step::ReturnTrue;
+                }
+            }
         }
         LOG_INFO("playerbots.dungeonclear",
                  "[DC:{}] stuck ladder exhausted near {} ({} nudge(s) bought no ground) -> stalling",
