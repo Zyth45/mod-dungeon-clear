@@ -13,6 +13,8 @@
 #include "Ai/Dungeon/DungeonClear/Util/DcProgressWatchdog.h"
 #include "Ai/Dungeon/DungeonClear/Util/DungeonClearMath.h"
 #include <algorithm>
+#include <array>
+#include <cstddef>
 #include <limits>
 #include <utility>
 #include <vector>
@@ -285,7 +287,9 @@ struct DcApproachState
     // a different streak — folding it into flaggedNoEngageSinceMs would make the
     // driving ladder wait out a grace it never used to.
     uint32 partyFlaggedNoEngageSinceMs = 0;
-    ObjectGuid glideHazardIgnore;    // sphere behind the last interrupt
+    // Spheres behind the last few interrupts (DungeonClearMath::LatchNewHazard).
+    std::array<ObjectGuid, 4> glideHazardIgnore{};
+    std::size_t glideHazardIgnoreNext = 0;
 
     // --- blocking-door interaction ----------------------------------------
     // Last door the bot clicked open and when, so the door-blocked action can
@@ -466,7 +470,8 @@ struct DcApproachState
         chaseOrigin         = Position();
         chaseHoldSince      = 0;
         glideHazardProbeMs  = 0;
-        glideHazardIgnore.Clear();
+        glideHazardIgnore.fill(ObjectGuid::Empty);
+        glideHazardIgnoreNext = 0;
         doorStallGuid.Clear();
         doorStallSinceMs    = 0;
         doorStallLastMs     = 0;

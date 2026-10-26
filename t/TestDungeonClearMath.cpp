@@ -7,6 +7,9 @@
 #include "DungeonClearMath.h"
 #include "DcProgressWatchdog.h"
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
 #include <limits>
 
 // Test point directly on the segment (midpoint)
@@ -2940,6 +2943,32 @@ TEST(DungeonClearMathTest, RepathOffLevelIgnoresARampOrStairFlight)
 {
     EXPECT_FALSE(DungeonClearMath::ShouldRepathOffLevel(4.9f, 5.0f, false));
     EXPECT_FALSE(DungeonClearMath::ShouldRepathOffLevel(-5.0f, 5.0f, false));
+}
+
+// tr-20261026-123722-57: Lethtendris and Pimgib took turns as the first sphere on
+// the glide window; a one-slot latch saw each as new and halted every probe.
+TEST(DungeonClearMathTest, GlideHazardLatchHoldsTwoAlternatingSpheres)
+{
+    std::array<uint64_t, 4> recent{};
+    std::size_t cursor = 0;
+    EXPECT_TRUE(DungeonClearMath::LatchNewHazard(recent, cursor, uint64_t(46)));
+    EXPECT_TRUE(DungeonClearMath::LatchNewHazard(recent, cursor, uint64_t(47)));
+    for (int i = 0; i < 10; ++i)
+    {
+        EXPECT_FALSE(DungeonClearMath::LatchNewHazard(recent, cursor, uint64_t(46)));
+        EXPECT_FALSE(DungeonClearMath::LatchNewHazard(recent, cursor, uint64_t(47)));
+    }
+}
+
+TEST(DungeonClearMathTest, GlideHazardLatchForgetsTheOldestPastItsSize)
+{
+    std::array<uint64_t, 2> recent{};
+    std::size_t cursor = 0;
+    EXPECT_TRUE(DungeonClearMath::LatchNewHazard(recent, cursor, uint64_t(1)));
+    EXPECT_TRUE(DungeonClearMath::LatchNewHazard(recent, cursor, uint64_t(2)));
+    EXPECT_TRUE(DungeonClearMath::LatchNewHazard(recent, cursor, uint64_t(3)));
+    EXPECT_TRUE(DungeonClearMath::LatchNewHazard(recent, cursor, uint64_t(1)));
+    EXPECT_FALSE(DungeonClearMath::LatchNewHazard(recent, cursor, uint64_t(3)));
 }
 
 // tr-20261025-211717-6: tank wedged 3.4yd beside the route to the Altar of the

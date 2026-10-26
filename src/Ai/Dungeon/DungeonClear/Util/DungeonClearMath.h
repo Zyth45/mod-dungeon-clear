@@ -7,6 +7,7 @@
 #define _PLAYERBOT_DUNGEONCLEARMATH_H
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -1390,6 +1391,22 @@ namespace DungeonClearMath
         if (++w.stalls < limit)
             return false;
         w.stalls = 0;
+        return true;
+    }
+
+    // Whether a mid-glide hazard is NEW, latching it if so. One remembered sphere
+    // is not enough: a boss and its pet standing 1.4yd apart (Lethtendris and
+    // Pimgib, Dire Maul East, tr-20261026-123722-57) take turns being "the first
+    // sphere on the window", so each one is new against the other and the tank
+    // halted its glide every two seconds for twenty minutes. Remember the last few.
+    template <typename Id, std::size_t N>
+    inline bool LatchNewHazard(std::array<Id, N>& recent, std::size_t& cursor, Id const& id)
+    {
+        for (Id const& seen : recent)
+            if (seen == id)
+                return false;
+        recent[cursor % N] = id;
+        cursor = (cursor + 1) % N;
         return true;
     }
 

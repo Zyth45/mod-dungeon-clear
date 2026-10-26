@@ -494,6 +494,19 @@ namespace
         return DcTargeting::GetPullTarget(botAI);
     }
 
+    // What an Advance glide is walking TO, for BystanderSpheres' `exclude`: the
+    // pull pipeline's pack when there is one, else the objective itself. The
+    // objective is the destination of every window, so its own aggro sphere (and
+    // its pet's, inside kPackRadius) can only ever stop the tank short of it.
+    // Dire Maul East (tr-20261026-123722-57): Lethtendris and Pimgib were the
+    // glide's hazards on the way to Lethtendris, 25 minutes of halts at 60yd.
+    Unit* GlideDestination(PlayerbotAI* botAI, AiObjectContext* context, Creature* objective)
+    {
+        if (Unit* const pack = PullDestinationPack(botAI, context))
+            return pack;
+        return objective;
+    }
+
     // Drive an in-progress swim leg. Returns true if a leg is active and owned
     // the tick (caller must return true); false if no leg is active or the leg
     // just completed (caller falls through to normal navmesh navigation).
@@ -1539,16 +1552,17 @@ void DungeonClearAdvanceAction::FillHopObs(AdvanceState& st, DungeonClearApproac
                 std::vector<DcEngageGeometry::AvoidSphere> const spheres =
                     DcEngageGeometry::BystanderSpheres(
                         bot, Position(end.x, end.y, end.z, 0.0f),
-                        PullDestinationPack(botAI, context));
+                        GlideDestination(botAI, context, st.liveBoss));
                 size_t legIdx = 0;
                 int idx = -1;
                 bool const honoured = DcEngageGeometry::TruncateWindowAtSphere(
                     remaining, spheres, DC_AVOID_MIN_GLIDE, DC_AVOID_EDGE_BACKOFF,
                     legIdx, idx);
                 if (honoured &&
-                    spheres[static_cast<size_t>(idx)].guid != appr.glideHazardIgnore)
+                    DungeonClearMath::LatchNewHazard(appr.glideHazardIgnore,
+                                                     appr.glideHazardIgnoreNext,
+                                                     spheres[static_cast<size_t>(idx)].guid))
                 {
-                    appr.glideHazardIgnore = spheres[static_cast<size_t>(idx)].guid;
                     interrupt = true;
                     DC_PULL_INFO("[DC:{}] mid-glide hazard: sphere {} (r={:.1f}) "
                                  "entered the committed window at leg {} -> halting "
@@ -1650,7 +1664,7 @@ void DungeonClearAdvanceAction::FillHopObs(AdvanceState& st, DungeonClearApproac
         std::vector<DcEngageGeometry::AvoidSphere> const spheres =
             DcEngageGeometry::BystanderSpheres(
                 bot, Position(end.x, end.y, end.z, 0.0f),
-                PullDestinationPack(botAI, context));
+                GlideDestination(botAI, context, st.liveBoss));
         size_t legIdx = 0;
         int idx = -1;
         size_t const before = st.splineWindow.size();
