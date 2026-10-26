@@ -64,6 +64,7 @@
 #include "Ai/Dungeon/DungeonClear/Util/DcPullPlanner.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcRezRecovery.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcStrandedRecovery.h"
+#include "Ai/Dungeon/DungeonClear/Util/DcSuppressionTransit.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcRaidMuster.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcSmartRest.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcTankForm.h"
@@ -2436,6 +2437,15 @@ bool DcObjectiveEngageCombatAction::Execute(Event /*event*/)
     return DriveObjectiveEngage();
 }
 
+namespace
+{
+    // A conditional ClearRadius whose target the engage walk-in refuses travels
+    // to the step's centre when it is farther than this; the leash is where the
+    // travel stops and the engage gets its next try.
+    constexpr float CONDITIONAL_SEEK_TRAVEL_MIN = 40.0f;
+    constexpr float CONDITIONAL_SEEK_TRAVEL_LEASH = 15.0f;
+}
+
 bool DcRunEventAction::Execute(Event /*event*/)
 {
     Map* map = bot ? bot->GetMap() : nullptr;
@@ -2527,6 +2537,33 @@ bool DcRunEventAction::Execute(Event /*event*/)
                     SetPhase(context, "event");
                     if (EngageDirect(target))
                         return true;
+                    // Too far for the engage walk-in: travel to the step's centre
+                    // first, the way boss-nav delivers an anchored event's tank.
+                    // Stratholme's ziggurat chambers fire the moment their boss
+                    // dies, and the party is by then often 100-200yd off, on the
+                    // way to the next boss: tr-20261026-060602-254 stalled on
+                    // "Ziggurat 2 acolytes" 190yd from the chamber, and the
+                    // Mythic -032922-205 shuttled between the Ziggurat 1 seek and
+                    // the boss route for over an hour.
+                    if (!bot->IsInCombat() &&
+                        bot->GetExactDist(step.x, step.y, step.z) > CONDITIONAL_SEEK_TRAVEL_MIN &&
+                        DcTransit::TravelTo(bot, botAI, step.x, step.y, step.z,
+                                            CONDITIONAL_SEEK_TRAVEL_LEASH))
+                    {
+                        uint32 const nowMs = getMSTime();
+                        if (prog.seekFailLogMs == 0 || getMSTimeDiff(prog.seekFailLogMs, nowMs) >= 10000)
+                        {
+                            prog.seekFailLogMs = nowMs;
+                            LOG_INFO("playerbots.dungeonclear",
+                                     "[DC:{}] event '{}' step {}: {} (entry {}) out of engage "
+                                     "reach -> travelling to ({:.1f},{:.1f},{:.1f}), {:.1f}yd",
+                                     bot->GetName(), ev->name, idx, target->GetName(),
+                                     target->GetEntry(), step.x, step.y, step.z,
+                                     bot->GetExactDist(step.x, step.y, step.z));
+                        }
+                        SetPhase(context, "event");
+                        return true;
+                    }
                     // The seek could not move the tank at its target. Handing the
                     // tick back lets Advance walk the boss route instead, and the
                     // door rung stands down while this event is due: Uldaman runs
@@ -2977,9 +3014,19 @@ bool DungeonClearDoorBlockedAction::Execute(Event event)
             }
         }
 
+        // Stratholme on a locked run (Dungeon Finder Service Entrance, Mythic+):
+        // the core starts every large portcullis shut, and lets players click
+        // 03 (175377) and 04 (175372) open — it clears their NOT_SELECTABLE flag
+        // for exactly that. They are listed script-only for Barthilas, so the
+        // bot paused 12yd in front of a gate a player would just click
+        // (tr-20261026-092351-442, 0/15, 217s). Selectable means clickable.
+        bool const strPlayerGate = door &&
+                                   (door->GetEntry() == 175372 || door->GetEntry() == 175377) &&
+                                   !door->HasGameObjectFlag(GO_FLAG_NOT_SELECTABLE);
         bool const canOpen = DC_ATTEMPT_DOOR_OPEN && door &&
-                             !DcEventDoorRegistry::IsScriptOnly(door->GetEntry()) &&
-                             BotCanOpenDoorLikePlayer(bot, door);
+                             (strPlayerGate ||
+                              (!DcEventDoorRegistry::IsScriptOnly(door->GetEntry()) &&
+                               BotCanOpenDoorLikePlayer(bot, door)));
         bool timedOut = false;
 
         if (canOpen)

@@ -1246,6 +1246,10 @@ TEST(DungeonEventConditional, StratholmeZigguratAcolyteEvents)
         DungeonEvent const* e = DungeonEventRegistry::Find(329, z.eventId);
         ASSERT_NE(e, nullptr);
         ASSERT_EQ(e->steps.size(), 2u);
+        // tr-20261026-060602-254: the chamber clear fires where the boss died and
+        // the 30s default ran out during the next trash fight, before the tank
+        // ever headed for the chamber.
+        EXPECT_GE(e->steps[0].timeoutMs, 300000u);
         EXPECT_EQ(e->steps[1].kind, EventStepKind::Custom);
         EXPECT_EQ(e->steps[1].hookId, z.hookId);
         EXPECT_TRUE(ObjectiveHookRegistry::Has(z.hookId));

@@ -138,6 +138,11 @@ namespace
 
     constexpr float STR_ZIG_RADIUS = 18.0f;   // covers the inner chamber
     constexpr float STR_ZIG_ZBAND = 12.0f;    // keep the multi-level floors out
+    // The chamber clear starts when its boss dies, wherever the party then is,
+    // and runs through the fights on the way in. The 30s default ran out before
+    // the tank ever left the trash it was fighting (tr-20261026-060602-254: the
+    // first look at the step, right after a fight, found it 30.3s old).
+    constexpr uint32 STR_ZIG_CLEAR_TIMEOUT = 300000;
 
     // --- ziggurat crystal repair -----------------------------------------
     // Every Thuzadin Acolyte's death SetData's the NEAREST live Ash'ari Crystal
@@ -394,6 +399,7 @@ void RegisterStratholmeEvents(std::vector<DungeonEvent>& out)
                       .PanelBeforeBoss(STR_NERUBENKAN)
                       .ClearRadius(STR_ZIG1_X, STR_ZIG1_Y, STR_ZIG1_Z,
                                    STR_ZIG_RADIUS, STR_ZIG_ZBAND)
+                          .Timeout(STR_ZIG_CLEAR_TIMEOUT)
                       .Custom(STR_HOOK_ZIG1_CLEARED)
                           .Timeout(STR_ZIG_CONFIRM_TIMEOUT)
                       .Build());
@@ -403,6 +409,7 @@ void RegisterStratholmeEvents(std::vector<DungeonEvent>& out)
                       .PanelBeforeBoss(STR_MALEKI)
                       .ClearRadius(STR_ZIG2_X, STR_ZIG2_Y, STR_ZIG2_Z,
                                    STR_ZIG_RADIUS, STR_ZIG_ZBAND)
+                          .Timeout(STR_ZIG_CLEAR_TIMEOUT)
                       .Custom(STR_HOOK_ZIG2_CLEARED)
                           .Timeout(STR_ZIG_CONFIRM_TIMEOUT)
                       .Build());
@@ -415,6 +422,7 @@ void RegisterStratholmeEvents(std::vector<DungeonEvent>& out)
                       .PanelBeforeBoss(BossRosterRegistry::ObjectiveEntry(1))
                       .ClearRadius(STR_ZIG3_X, STR_ZIG3_Y, STR_ZIG3_Z,
                                    STR_ZIG_RADIUS, STR_ZIG_ZBAND)
+                          .Timeout(STR_ZIG_CLEAR_TIMEOUT)
                       .Custom(STR_HOOK_ZIG3_CLEARED)
                           .Timeout(STR_ZIG_CONFIRM_TIMEOUT)
                       .Build());
@@ -617,10 +625,14 @@ void RegisterStratholmeRoster(std::vector<BossRosterPatch>& t)
             // ("closed door blocking path"). This spot is in the open hall,
             // reachable from the south entrance gate without crossing a closed
             // door; the event's ClearRadius (r80) covers the whole hall.
+            // arriveRadius 40, not 30: the route in from the gauntlet wedges the
+            // tank around x 4061-4064, 30.0-30.5yd from this point, and three
+            // runs of 26/10 (tr-20261026-024152-160, -034605-211, -060716-268)
+            // sat there ten minutes, 13/13 down, never "arrived".
             // orderOverride 12 = after the ziggurats (11), before Baron (13).
             MakeObjective(OBJ(1), /*encounterIndex*/ 11, 329,
                           "Slaughterhouse (Baron run)",
-                          4032.0f, -3415.0f, 118.0f, /*arriveRadius*/ 30.0f,
+                          4032.0f, -3415.0f, 118.0f, /*arriveRadius*/ 40.0f,
                           /*gateEntry*/ 0, /*hook*/ 0, /*eventId*/ 4,
                           /*orderOverride*/ 12),
         };
