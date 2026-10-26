@@ -350,6 +350,16 @@ bool DcLootPolicy::CorpseHasTakeableLoot(Player* bot, Creature* creature, uint32
         if (bagsFull)
             continue;  // would take it, but nowhere to put it
 
+        // "bag space" is a percentage, so a bot one slot short of 100% reads
+        // as having room for an item that fits nowhere. Night of 26/10 the
+        // overall-timeout parties ended with bags at 94-96 of 96 and the tank
+        // waited out the loot yield on corpse after corpse (lbrs
+        // tr-20261026-031922-197: 485 loot-yield timeouts, 26s each on
+        // average). Ask the inventory itself.
+        ItemPosCountVec dest;
+        if (bot->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, item.itemid, item.count) != EQUIP_ERR_OK)
+            continue;
+
         return true;  // at least one item worth a stop
     }
 
