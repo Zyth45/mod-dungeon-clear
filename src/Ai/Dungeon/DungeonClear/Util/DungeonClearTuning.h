@@ -403,6 +403,10 @@ constexpr float DC_Z_LEVEL_TOLERANCE = 5.0f;
 // (DungeonClearMath::RestWaitExpired). Drinking from empty takes ~30s.
 constexpr uint32 DC_REST_WAIT_MAX_MS = 120000;
 
+// Past this on the Advance loot-yield (its DC_LOOT_YIELD_TIMEOUT_MS, 15s, plus
+// a beat) the strict between-pulls gate stops waiting on the tank's own loot.
+constexpr uint32 DC_LOOT_STRICT_WAIVE_MS = 20000;
+
 // Vertical half-band for matching a trash candidate to a leg of the corridor in
 // the blocking-trash scans. The corridor band test is otherwise 2D, so a mob at
 // the bottom of a ledge — directly under (or over) an early leg of the route in

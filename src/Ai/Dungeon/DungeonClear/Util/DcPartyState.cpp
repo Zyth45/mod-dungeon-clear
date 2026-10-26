@@ -69,6 +69,7 @@
 #include "Ai/Dungeon/DungeonClear/Util/NavmeshSnap.h"
 #include "Ai/Dungeon/DungeonClear/Value/DungeonClearLiveBossValue.h"
 #include "Ai/Dungeon/DungeonClear/DcValueKeys.h"
+#include "Ai/Dungeon/DungeonClear/DcApproachState.h"
 
 float DcPartyState::RestMinHpPct(Player* bot)
 {
@@ -407,6 +408,22 @@ DcPartyState::RestGate DcPartyState::GetRestGate(Player* bot, AiObjectContext* c
     gate.minMp = RestMinMpPct(bot);
     return gate;
 }
+namespace
+{
+    // The Advance loot-yield has already waited its commit-timeout and given up:
+    // loot the tank still "has available" is loot nobody is going to take, and
+    // the strict gate must not hold the at-boss pull on it. SM Cathedral
+    // (tr-20261026-154714-5): the tank stood 10yd from Fairbanks, "loot-yield
+    // timed out ... giving up on corpse" on every tick for ten minutes, the
+    // engage hold waiting on the at-boss trigger and the trigger on the loot.
+    bool LootYieldSpent(AiObjectContext* context)
+    {
+        uint32 const start =
+            context->GetValue<DcApproachState&>(DcKey::ApproachState)->Get().lootYieldStartMs;
+        return DungeonClearMath::RestWaitExpired(start, getMSTime(), DC_LOOT_STRICT_WAIVE_MS);
+    }
+}
+
 bool DcPartyState::IsBetweenPullsReady(Player* bot, AiObjectContext* context, bool requireNoLoot)
 {
     if (!bot || !context)
@@ -427,14 +444,16 @@ bool DcPartyState::IsBetweenPullsReady(Player* bot, AiObjectContext* context, bo
         // idempotent within a tick, so double evaluation is safe. Do NOT move
         // the update into DcTickMemo: the loot-yield path must refresh it too.
         bool const latched = DcSmartRest::UpdateLatch(bot, context);
-        if (requireNoLoot && context->GetValue<bool>(DcKey::Stock::HasAvailableLoot)->Get())
+        if (requireNoLoot && context->GetValue<bool>(DcKey::Stock::HasAvailableLoot)->Get() &&
+            !LootYieldSpent(context))
             return false;
         SpreadGate const gate = GetSpreadGate(bot, context);
         // Thresholds 0 = spread-only readiness; recovery is the latch's job.
         return !latched &&
                IsPartyReady(bot, 0.0f, 0.0f, gate.maxSpread, gate.anchor, gate.maxTankGap);
     }
-    if (requireNoLoot && context->GetValue<bool>(DcKey::Stock::HasAvailableLoot)->Get())
+    if (requireNoLoot && context->GetValue<bool>(DcKey::Stock::HasAvailableLoot)->Get() &&
+            !LootYieldSpent(context))
         return false;
     SpreadGate const gate = GetSpreadGate(bot, context);
     RestGate const rest = GetRestGate(bot, context);
