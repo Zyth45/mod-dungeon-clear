@@ -2945,6 +2945,24 @@ TEST(DungeonClearMathTest, RepathOffLevelIgnoresARampOrStairFlight)
     EXPECT_FALSE(DungeonClearMath::ShouldRepathOffLevel(-5.0f, 5.0f, false));
 }
 
+// tr-20261026-125623-76: tank thrown 90yd off Stratholme's walkway, no route to
+// Maleki from the ground below; the last complete route was built up top.
+TEST(DungeonClearMathTest, ReturnToRoutableGroundAfterAFall)
+{
+    EXPECT_TRUE(DungeonClearMath::ShouldReturnToRoutableGround(true, true, false, 92.0f, 15.0f, 0, 2));
+    EXPECT_TRUE(DungeonClearMath::ShouldReturnToRoutableGround(true, true, false, 92.0f, 15.0f, 1, 2));
+}
+
+TEST(DungeonClearMathTest, ReturnToRoutableGroundIsBoundedAndNeverInCombat)
+{
+    EXPECT_FALSE(DungeonClearMath::ShouldReturnToRoutableGround(true, true, false, 92.0f, 15.0f, 2, 2));
+    EXPECT_FALSE(DungeonClearMath::ShouldReturnToRoutableGround(true, true, true, 92.0f, 15.0f, 0, 2));
+    EXPECT_FALSE(DungeonClearMath::ShouldReturnToRoutableGround(false, true, false, 92.0f, 15.0f, 0, 2));
+    EXPECT_FALSE(DungeonClearMath::ShouldReturnToRoutableGround(true, false, false, 92.0f, 15.0f, 0, 2));
+    // Already standing on the stamp: the objective is unreachable from there too.
+    EXPECT_FALSE(DungeonClearMath::ShouldReturnToRoutableGround(true, true, false, 4.0f, 15.0f, 0, 2));
+}
+
 // tr-20261026-123722-57: Lethtendris and Pimgib took turns as the first sphere on
 // the glide window; a one-slot latch saw each as new and halted every probe.
 TEST(DungeonClearMathTest, GlideHazardLatchHoldsTwoAlternatingSpheres)

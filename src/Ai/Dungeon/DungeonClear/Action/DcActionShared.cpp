@@ -440,6 +440,16 @@ namespace DcActionShared
 
         ctx->GetValue<uint32>(DcKey::CurrentHop)->Set(0u);
 
+        // Stamp routable ground for DoLongPathUnreachable's return (see
+        // DungeonClearMath::ShouldReturnToRoutableGround). Only a COMPLETE route,
+        // built from where the bot stands now, on its feet.
+        if (path.reachable && path.complete && !bot->GetVehicle() && !bot->IsFalling())
+        {
+            appr.lastRoutableFrom = bot->GetPosition();
+            appr.lastRoutableMap = bot->GetMapId();
+            appr.hasRoutableFrom = true;
+        }
+
         // SEED the follower rather than flatly resetting it. For a route built
         // from the bot's own position the two are identical (SeedCursor early-
         // outs at segment 0 without a raycast); for an AUTHORED ANCHOR route,

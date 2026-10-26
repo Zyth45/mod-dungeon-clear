@@ -226,6 +226,16 @@ struct DcApproachState
     // spent. Same lifetime as offLevelRepathSpent.
     bool offLineHopSpent = false;
 
+    // Where the tank last stood when a COMPLETE route to its objective was built
+    // (InstallLongPath), and how many times this objective has sent it back there
+    // (DungeonClearMath::ShouldReturnToRoutableGround). The stamp outlives a boss
+    // change: ground that routed to one objective is on the instance's walkable
+    // mesh. The count does not.
+    Position lastRoutableFrom;
+    uint32 lastRoutableMap = 0;
+    bool hasRoutableFrom = false;
+    uint32 routableReturns = 0;
+
     // Deadline (getMSTime) while a LONG re-entry glide owns the bot; 0 = none.
     // A deliberate re-entry from far off the route reads, to every rung that
     // measures against the route, exactly like the wedge it is curing: IsOffPath
@@ -450,6 +460,7 @@ struct DcApproachState
         resnapAttempts      = 0;
         nudgeAttempts       = 0;
         partyNotReadyTicks  = 0;
+        routableReturns     = 0;
         lastPos             = Position();
         skirtOrbitDir       = 0;
         offLineLatched      = false;

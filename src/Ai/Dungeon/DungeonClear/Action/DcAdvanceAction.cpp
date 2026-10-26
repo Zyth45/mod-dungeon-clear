@@ -149,6 +149,10 @@ namespace
     constexpr uint32 DC_WALK_RESNAP_STALL_LIMIT = 4;
     constexpr float DC_WALK_RESNAP_GAIN = 2.0f;
     constexpr float DC_WALK_RESNAP_STEP_MAX = 20.0f;
+    // Return to routable ground (ShouldReturnToRoutableGround): closer than this
+    // the stamp is where the bot already is, and the returns allowed per objective.
+    constexpr float DC_ROUTABLE_RETURN_MIN = 15.0f;
+    constexpr uint32 DC_ROUTABLE_RETURN_LIMIT = 2;
 
     // Slack added to a long re-entry glide's own travel time before its latch
     // expires: enough to absorb the launch tick and ordinary spline pacing, short
@@ -1334,6 +1338,36 @@ DungeonClearAdvanceAction::Step DungeonClearAdvanceAction::DoLongPathUnreachable
         LOG_INFO("playerbots.dungeonclear",
                  "[DC:{}] no navmesh route to {} -> swimming", bot->GetName(), next->name);
         SetPhase(context, "swimming");
+        return Step::ReturnTrue;
+    }
+
+    // Thrown somewhere the objective no longer routes from: go back to the last
+    // spot a complete route was built from. The party follows by the stranded
+    // recovery, and the next tick rebuilds from there.
+    if (DC_ALLOW_RECOVERY_MOVES &&
+        DungeonClearMath::ShouldReturnToRoutableGround(
+            appr.hasRoutableFrom, appr.lastRoutableMap == bot->GetMapId(), bot->IsInCombat(),
+            bot->GetExactDist(&appr.lastRoutableFrom), DC_ROUTABLE_RETURN_MIN,
+            appr.routableReturns, DC_ROUTABLE_RETURN_LIMIT) &&
+        !bot->GetVehicle())
+    {
+        LOG_INFO("playerbots.dungeonclear",
+                 "[DC:{}] no route to {} from ({:.1f},{:.1f},{:.1f}) -> back to routable "
+                 "ground at ({:.1f},{:.1f},{:.1f}), {:.1f}yd (return {}/{})",
+                 bot->GetName(), next->name, bot->GetPositionX(), bot->GetPositionY(),
+                 bot->GetPositionZ(), appr.lastRoutableFrom.GetPositionX(),
+                 appr.lastRoutableFrom.GetPositionY(), appr.lastRoutableFrom.GetPositionZ(),
+                 bot->GetExactDist(&appr.lastRoutableFrom), appr.routableReturns + 1,
+                 DC_ROUTABLE_RETURN_LIMIT);
+        ++appr.routableReturns;
+        bot->GetMotionMaster()->Clear();
+        bot->NearTeleportTo(appr.lastRoutableFrom.GetPositionX(),
+                            appr.lastRoutableFrom.GetPositionY(),
+                            appr.lastRoutableFrom.GetPositionZ() + 0.5f, bot->GetOrientation());
+        appr.longPathExpiresMs = 0;
+        *st.follower = DungeonFollowerState{};
+        ClearStall(context);
+        SetPhase(context, "recovering");
         return Step::ReturnTrue;
     }
 

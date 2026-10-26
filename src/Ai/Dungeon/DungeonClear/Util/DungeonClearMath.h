@@ -1394,6 +1394,21 @@ namespace DungeonClearMath
         return true;
     }
 
+    // Whether a tank with NO route to its objective should be put back where the
+    // last complete route was built from. A tank thrown off Stratholme's upper
+    // walkway mid-pull (tr-20261026-125623-76) landed 90yd below on ground that
+    // no longer joins Maleki's; every rebuild came back "no navigable route" and
+    // the run stalled out with the party teleported down beside it. Only out of
+    // combat, only when that ground is really elsewhere, and a bounded number of
+    // times per objective, so an objective that is simply unreachable from
+    // anywhere still reaches the stall.
+    inline bool ShouldReturnToRoutableGround(bool haveStamp, bool sameMap, bool inCombat,
+                                             float distToStamp, float minDist,
+                                             uint32 spent, uint32 limit)
+    {
+        return haveStamp && sameMap && !inCombat && distToStamp > minDist && spent < limit;
+    }
+
     // Whether a mid-glide hazard is NEW, latching it if so. One remembered sphere
     // is not enough: a boss and its pet standing 1.4yd apart (Lethtendris and
     // Pimgib, Dire Maul East, tr-20261026-123722-57) take turns being "the first
