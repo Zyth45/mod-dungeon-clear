@@ -67,6 +67,13 @@ EventBuilder& EventBuilder::CompleteWhenGOState(uint32 goEntry, uint32 wantState
     return *this;
 }
 
+EventBuilder& EventBuilder::CompleteAlsoNeedsGOState(uint32 goEntry, uint32 wantState)
+{
+    _ev.completeAlsoGoEntry = goEntry;
+    _ev.completeAlsoGoState = wantState;
+    return *this;
+}
+
 EventBuilder& EventBuilder::OwnsThePull()
 {
     _ev.ownsThePull = true;

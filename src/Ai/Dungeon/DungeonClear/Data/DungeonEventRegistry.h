@@ -563,6 +563,11 @@ struct DungeonEvent
     uint32 completeGoEntry{0};
     uint32 completeGoState{0};
     float  completeGoRadius{0.0f};
+    // A second GO the completion also needs in its state, for a completion GO that
+    // also flashes to it mid-chain (Stratholme's hall door, opened and shut again
+    // by Ramstein's spawn script). 0 => unused.
+    uint32 completeAlsoGoEntry{0};
+    uint32 completeAlsoGoState{0};
 
     // This event OWNS THE PULL while it drives: the whole dynamic/advanced pull
     // system stands down (DungeonClearPullModeCurrentValue) and the scout-lag
@@ -658,6 +663,9 @@ public:
     // DungeonEvent::completeGoEntry).
     EventBuilder& CompleteWhenGOState(uint32 goEntry, uint32 wantState,
                                       float searchRadius = 0.0f);
+    // ...and only while `goEntry` also reads `wantState` (see
+    // DungeonEvent::completeAlsoGoEntry).
+    EventBuilder& CompleteAlsoNeedsGOState(uint32 goEntry, uint32 wantState);
     // Stand the whole pull system (and the scout-lag) down for as long as this
     // event drives — see DungeonEvent::ownsThePull. Conditional events only; the
     // anchored path already infers it from Persistent().

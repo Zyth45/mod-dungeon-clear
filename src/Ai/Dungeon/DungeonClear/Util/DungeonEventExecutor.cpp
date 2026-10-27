@@ -1532,7 +1532,12 @@ EventDriveOutcome DungeonEventExecutor::Drive(Player* bot, AiObjectContext* cont
     {
         float const search = ev.completeGoRadius > 0.0f ? ev.completeGoRadius : DC_EVENT_GO_SEARCH;
         GameObject* go = bot->FindNearestGameObject(ev.completeGoEntry, search);
-        if (go && static_cast<uint32>(go->GetGoState()) == ev.completeGoState)
+        GameObject* also = ev.completeAlsoGoEntry
+                               ? bot->FindNearestGameObject(ev.completeAlsoGoEntry, search)
+                               : nullptr;
+        if (go && static_cast<uint32>(go->GetGoState()) == ev.completeGoState &&
+            (!ev.completeAlsoGoEntry ||
+             (also && static_cast<uint32>(also->GetGoState()) == ev.completeAlsoGoState)))
         {
             LOG_INFO("playerbots.dungeonclear",
                      "[DC:{}] event '{}' completed at step {}: GO {} reads state {}",

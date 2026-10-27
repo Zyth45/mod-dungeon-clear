@@ -436,6 +436,11 @@ void RegisterStratholmeEvents(std::vector<DungeonEvent>& out)
                       .Anchored(11)
                       .Persistent()
                       .CompleteWhenGOState(STR_GO_HALL_DOOR, STR_GO_OPEN, STR_DOOR_SEARCH)
+                      // Ramstein's spawn script opens the hall door for a second and
+                      // shuts it (smart_scripts 1043900): tr-20261027-025417-344
+                      // latched the chain on that flash with Ramstein up and walked
+                      // into the shut door. The side gate opens only on his death.
+                      .CompleteAlsoNeedsGOState(STR_GO_SIDE_GATE, STR_GO_OPEN)
                       // 1. Clear the hall of the pre-spawned abominations (13x Bile
                       //    Spewer 10416 / Venom Belcher 10417). Ramstein is summoned
                       //    ONLY when EVERY abomination dies, so a single one left alive

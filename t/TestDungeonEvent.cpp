@@ -1217,6 +1217,10 @@ TEST(DungeonEventRegistryTest, StratholmeSlaughterhouseEventShape)
     EXPECT_EQ(e->completeGoEntry, 175405u);
     EXPECT_EQ(e->completeGoState, 0u);
     EXPECT_GT(e->completeGoRadius, 100.0f);
+    // ...but not in the one second Ramstein's spawn script holds it open: only with
+    // the side gate his death opens.
+    EXPECT_EQ(e->completeAlsoGoEntry, 175358u);
+    EXPECT_EQ(e->completeAlsoGoState, 0u);
 }
 
 // Stratholme (329) live side: Grand Crusader Dathrohan -> Balnazzar (eventId 5),
