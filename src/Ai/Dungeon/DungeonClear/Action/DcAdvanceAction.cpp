@@ -1333,32 +1333,13 @@ void DungeonClearAdvanceAction::FillPathObs(AdvanceState& st, DungeonClearApproa
             // and on this floor, so put the bot where it leads; the cursor then moves
             // on from the point and the next stall, if any, is one point further.
             float const bestWalk = appr.walkResnapWatch.bestWalk;
-            std::optional<G3D::Vector3> onto = DungeonPathFollower::CurrentPoint(path, follower);
+            std::optional<G3D::Vector3> const onto = DungeonPathFollower::CurrentPoint(path, follower);
             if (DungeonClearMath::WalkResnapStalled(appr.walkResnapWatch, follower.segmentIdx,
                                                     follower.pointIdx, walked,
                                                     DC_WALK_RESNAP_GAIN, DC_WALK_RESNAP_STALL_LIMIT) &&
                 DC_ALLOW_RECOVERY_MOVES && onto.has_value() && walked <= DC_WALK_RESNAP_STEP_MAX &&
                 !bot->IsInCombat() && !bot->GetVehicle())
             {
-                // Put on this point before and back at the same walk: the point does
-                // not hold the bot, so it goes onto the next one instead.
-                G3D::Vector3 passed;
-                if (DungeonClearMath::WalkResnapStepDidNotHold(appr.walkResnapWatch) &&
-                    DungeonPathFollower::SkipPassedPoint(path, follower, passed))
-                {
-                    std::optional<G3D::Vector3> const ahead =
-                        DungeonPathFollower::CurrentPoint(path, follower);
-                    if (ahead.has_value() &&
-                        bot->GetExactDist2d(ahead->x, ahead->y) <= DC_WALK_RESNAP_STEP_MAX &&
-                        std::fabs(ahead->z - bot->GetPositionZ()) <= DC_Z_LEVEL_TOLERANCE)
-                    {
-                        LOG_INFO("playerbots.dungeonclear",
-                                 "[DC:{}] walk resnap: the step onto ({:.1f},{:.1f},{:.1f}) did "
-                                 "not hold -> past it",
-                                 bot->GetName(), passed.x, passed.y, passed.z);
-                        onto = ahead;
-                    }
-                }
                 LOG_INFO("playerbots.dungeonclear",
                          "[DC:{}] walk resnap: seg {} pt {} re-picked {} times, walk never under "
                          "{:.1f}yd -> stepping onto ({:.1f},{:.1f},{:.1f})",

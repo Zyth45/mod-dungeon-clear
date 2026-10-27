@@ -3069,27 +3069,6 @@ TEST(DungeonClearMathTest, WalkResnapRestartsOnANewPoint)
     EXPECT_TRUE(DungeonClearMath::WalkResnapStalled(w, 37, 0, 12.5f, 2.0f, 4));
 }
 
-// tr-20261026-221838-182: put on anchor 37, the tank was back on the same 11.8yd
-// walk four re-picks later, 36 times. The second step goes past the point.
-TEST(DungeonClearMathTest, WalkResnapStepThatDidNotHoldGoesPastThePoint)
-{
-    DungeonClearMath::WalkResnapWatch w;
-    auto fireOnce = [&w](uint32 seg)
-    {
-        bool fired = false;
-        for (int i = 0; i < 5 && !fired; ++i)
-            fired = DungeonClearMath::WalkResnapStalled(w, seg, 0, 11.8f, 2.0f, 4);
-        return fired;
-    };
-    ASSERT_TRUE(fireOnce(37));
-    EXPECT_FALSE(DungeonClearMath::WalkResnapStepDidNotHold(w));
-    ASSERT_TRUE(fireOnce(37));
-    EXPECT_TRUE(DungeonClearMath::WalkResnapStepDidNotHold(w));
-    // Past it: the next point starts a fresh watch.
-    EXPECT_FALSE(DungeonClearMath::WalkResnapStalled(w, 38, 0, 15.0f, 2.0f, 4));
-    EXPECT_FALSE(DungeonClearMath::WalkResnapStepDidNotHold(w));
-}
-
 TEST(DungeonClearMathTest, RepathOffLevelIsSpentOnce)
 {
     EXPECT_FALSE(DungeonClearMath::ShouldRepathOffLevel(-14.2f, 5.0f, true));

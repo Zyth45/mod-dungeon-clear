@@ -1372,7 +1372,6 @@ namespace DungeonClearMath
         uint32 pt       = 0;
         float  bestWalk = std::numeric_limits<float>::max();
         uint32 stalls   = 0;
-        uint32 fired    = 0;
     };
 
     inline bool WalkResnapStalled(WalkResnapWatch& w, uint32 seg, uint32 pt, float walked,
@@ -1392,19 +1391,7 @@ namespace DungeonClearMath
         if (++w.stalls < limit)
             return false;
         w.stalls = 0;
-        ++w.fired;
         return true;
-    }
-
-    // The bot was already put on this point once and came back to the same walk:
-    // whatever pulls it there acts on the point itself. All four Blackfathom Deeps
-    // heroic/mythic freezes after a43eadc (tr-20261026-193727-15, -221838-182,
-    // -223018-195, tr-20261027-030522-353) stepped onto anchor 37 35 to 70 times,
-    // and the one tank that got through (tr-20261026-203434-96) pulled the next
-    // pack from anchor 38.
-    inline bool WalkResnapStepDidNotHold(WalkResnapWatch const& w)
-    {
-        return w.fired > 1;
     }
 
     // Whether a tank with NO route to its objective should be put back where the
