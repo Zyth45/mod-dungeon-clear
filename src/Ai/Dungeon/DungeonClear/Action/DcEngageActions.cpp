@@ -2951,6 +2951,22 @@ bool DungeonClearDoorBlockedAction::Execute(Event event)
                 return true;
             }
         }
+        // The same door shut behind a party that went through it while it stood
+        // open, Rethilgore still alive on the entrance side: tr-20261027-213010-272
+        // and -214243-284 dragged a courtyard pack to a camp past the door, and it
+        // was closed when the route turned back to Rethilgore. Only the courtyard
+        // side (north of the door) is ever cut off from him; open it again.
+        if (door && door->GetEntry() == 18895 && DcEngageGeometry::IsDoorClosed(door) &&
+            next.has_value() && next->entry == 3914 &&
+            bot->GetPositionY() > door->GetPositionY() && allBotParty())
+        {
+            door->SetGoState(GO_STATE_ACTIVE);
+            LOG_INFO("playerbots.dungeonclear",
+                     "[DC:{}] door-blocked: all-bot party shut in the courtyard with Rethilgore "
+                     "alive behind the Courtyard Door {} -> reopening it",
+                     bot->GetName(), door->GetGUID().ToString());
+            return true;
+        }
 
         if (door && (door->GetEntry() == 175372 || door->GetEntry() == 175377) &&
             DcEngageGeometry::IsDoorClosed(door) &&
