@@ -112,6 +112,7 @@ namespace DcTestRunRecord
           << ",\"instanceId\":" << rec.instanceId
           << ",\"level\":" << rec.level
           << ",\"heroic\":" << (rec.heroic ? "true" : "false")
+          << ",\"difficulty\":" << rec.difficulty
           << ",\"size\":" << rec.size
           << ",\"compSeed\":" << rec.compSeed
           << ",\"gearIlvl\":" << rec.gearIlvl

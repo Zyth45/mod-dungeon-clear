@@ -347,13 +347,24 @@ namespace DcTestDungeonRegistry
         return mapEntry ? mapEntry->Expansion() : 0u;
     }
 
-    std::uint32_t MaxPlayers(Row const& row)
+    std::uint32_t MaxPlayers(Row const& row, std::uint8_t difficulty)
     {
-        if (MapDifficulty const* diff = GetMapDifficultyData(row.mapId, Difficulty(0)))
+        if (MapDifficulty const* diff = GetMapDifficultyData(row.mapId, Difficulty(difficulty)))
             if (diff->maxPlayers)
                 return diff->maxPlayers;
         MapEntry const* mapEntry = sMapStore.LookupEntry(row.mapId);
         return mapEntry ? mapEntry->maxPlayers : 0u;
+    }
+
+    bool IsRaid(Row const& row)
+    {
+        MapEntry const* mapEntry = sMapStore.LookupEntry(row.mapId);
+        return mapEntry && mapEntry->IsRaid();
+    }
+
+    bool OffersDifficulty(Row const& row, std::uint8_t difficulty)
+    {
+        return difficulty == 0 || GetMapDifficultyData(row.mapId, Difficulty(difficulty)) != nullptr;
     }
 
     std::vector<std::uint32_t> RaidSizePresets(std::uint32_t cap)

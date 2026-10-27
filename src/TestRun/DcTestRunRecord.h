@@ -159,7 +159,9 @@ namespace DcTestRunRecord
         //     running event filled — DcRunState::SetTestExtra). On a scenario
         //     run bossesTotal / bossRoster count the FOCUS only, so do not
         //     compare them with a full-dungeon run of the same map.
-        std::uint32_t schema = 13;
+        // 14: added difficulty (the raw difficulty the group was set to; on a
+        //     raid map CoA's 0 Normal / 1 Heroic / 2 Mythic / 3 Ascended).
+        std::uint32_t schema = 14;
         std::string runId;
         std::string planId;       // owning `.dc test plan`, "" for ad-hoc runs
         std::string dungeon;      // registry token
@@ -169,6 +171,10 @@ namespace DcTestRunRecord
         std::uint32_t instanceId = 0;
         std::uint32_t level = 0;  // requested level
         bool heroic = false;      // run at DUNGEON_DIFFICULTY_HEROIC
+        // Raw difficulty the group was set to, read with mapId's type: a
+        // dungeon's 1 is heroic, a raid's 1 is CoA raid Heroic. 0 in pre-14
+        // records.
+        std::uint32_t difficulty = 0;
         // Party size the run fielded (raid-support Plan D). 0 in pre-11
         // records; read comp[].length there.
         std::uint32_t size = 0;

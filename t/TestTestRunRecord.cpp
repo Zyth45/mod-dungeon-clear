@@ -177,14 +177,16 @@ TEST(DcTestRunRecordTest, BossRosterSerializesInProgressionOrder)
               std::string::npos);
 }
 
-TEST(DcTestRunRecordTest, SchemaIsThirteen)
+TEST(DcTestRunRecordTest, SchemaIsFourteen)
 {
     // 12: added combatHolders[].trigger, and with it a change of meaning in the
     // sibling `legitimate` field — a trigger creature now sinks the verdict.
     // 13: added the scenario block (scenario/scenarioOf/focus/successBy/
     // tailPending/extras).
-    EXPECT_NE(ToJsonl(SampleRecord()).find("\"schema\":13"), std::string::npos);
+    // 14: added difficulty (the raw group difficulty; CoA raid modes on raids).
+    EXPECT_NE(ToJsonl(SampleRecord()).find("\"schema\":14"), std::string::npos);
     EXPECT_NE(ToJsonl(SampleRecord()).find("\"size\":"), std::string::npos);
+    EXPECT_NE(ToJsonl(SampleRecord()).find("\"difficulty\":"), std::string::npos);
 }
 
 // A full-dungeon run still carries the scenario block, empty — readers key on

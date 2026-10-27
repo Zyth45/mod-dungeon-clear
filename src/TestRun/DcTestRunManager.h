@@ -76,10 +76,12 @@ public:
     // Spec inherits the Playerbots.AutoGear* conf values.
     // size 0 = the classic 5-man comp; 2-40 fields a sized (raid) comp — see
     // DcTestComp::RoleQuota / DcTestRunJob::Create.
+    // coaDifficulty is the CoA raid mode (0 Normal, 1 Heroic, 2 Mythic,
+    // 3 Ascended), refused on a dungeon row and on a mode the map lacks.
     bool Start(Player* gm, std::string const& dungeonToken, uint32 levelOverride, uint32 seed,
                bool heroic, DcTestGearTiers::Spec const& gear, std::string* msg,
                std::string const& planId = "", StartErr* errOut = nullptr,
-               std::string* runIdOut = nullptr, uint32 size = 0);
+               std::string* runIdOut = nullptr, uint32 size = 0, uint8 coaDifficulty = 0);
 
     // Validate + launch a HAND-PICKED party (`.dc test start <d> party=a,b,c,d,e`).
     // `partySpec` is the raw comma-separated name list; roles are positional

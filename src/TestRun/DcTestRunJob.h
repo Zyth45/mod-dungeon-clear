@@ -112,7 +112,8 @@ public:
                                                  bool heroic,
                                                  DcTestGearTiers::Spec const& gear,
                                                  std::unordered_set<ObjectGuid> const& reservedGuids,
-                                                 std::string const& planId, std::string* err);
+                                                 std::string const& planId, std::string* err,
+                                                 uint8 coaDifficulty = 0);
 
     // One hand-picked party slot: a real player character and the role the human
     // marked it for. Resolved (name -> guid, faction/liveness checked) by
@@ -393,6 +394,8 @@ private:
     bool _heroic = false;  // run at DUNGEON_DIFFICULTY_HEROIC
     // CoA keeps Heroic (1) and Mythic (2) modes on classic dungeons, which the
     // registry's heroicLevel does not know about; 0 leaves the module's choice.
+    // On a raid map it is the raid difficulty (0 Normal, 1 Heroic, 2 Mythic,
+    // 3 Ascended — CoA's flex-sized classic raid modes).
     uint8 _coaDifficulty = 0;
     bool _regear = false;  // roster run: regear each member in epics before the run
 

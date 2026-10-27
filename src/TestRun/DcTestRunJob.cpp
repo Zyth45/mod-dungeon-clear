@@ -305,7 +305,8 @@ std::unique_ptr<DcTestRunJob> DcTestRunJob::Create(Player* gm, DcTestDungeonRegi
                                                    bool heroic,
                                                    DcTestGearTiers::Spec const& gear,
                                                    std::unordered_set<ObjectGuid> const& reservedGuids,
-                                                   std::string const& planId, std::string* err)
+                                                   std::string const& planId, std::string* err,
+                                                   uint8 coaDifficulty)
 {
     // Caller (DcTestRunManager::Start) has already validated the registry row
     // (including that heroic is only requested where heroicLevel is set) and
@@ -335,7 +336,13 @@ std::unique_ptr<DcTestRunJob> DcTestRunJob::Create(Player* gm, DcTestDungeonRegi
     }
     else
         comp = DcTestComp::BuildComp(seed, size, roster);
-    return CreateWithComp(gm, row, level, seed, heroic, gear, comp, reservedGuids, planId, err);
+    std::unique_ptr<DcTestRunJob> job =
+        CreateWithComp(gm, row, level, seed, heroic, gear, comp, reservedGuids, planId, err);
+    // Read at grouping (raid difficulty) and by the level/item-level gate, both
+    // long after this returns; the drawn comp is the same at every mode.
+    if (job)
+        job->_coaDifficulty = coaDifficulty;
+    return job;
 }
 
 DcTestComp::Roster DcTestRunJob::RosterFor(DcTestDungeonRegistry::Row const& row, uint32 level)
@@ -647,8 +654,14 @@ void DcTestRunJob::AbortSetup(std::string const& reason)
 std::string DcTestRunJob::StatusLine() const
 {
     Stage const stage = _stage.load();
-    std::string out = _record.runId + " " + _record.dungeon + (_heroic ? " (heroic)" : "") +
-                      (_coaDifficulty == 1 ? " (CoA heroic)" : _coaDifficulty == 2 ? " (CoA mythic 0)" : "") +
+    // A raid's CoA difficulty is its raid mode (see the grouping step); on a
+    // dungeon, 2 is the Mythic 0 base of the keystone ladder.
+    static char const* const kRaidModes[] = {"", " (CoA raid heroic)", " (CoA raid mythic)",
+                                             " (CoA raid ascended)"};
+    std::string const coaLabel =
+        IsRaidMap() ? (_coaDifficulty < 4 ? kRaidModes[_coaDifficulty] : "")
+                    : (_coaDifficulty == 1 ? " (CoA heroic)" : _coaDifficulty == 2 ? " (CoA mythic 0)" : "");
+    std::string out = _record.runId + " " + _record.dungeon + (_heroic ? " (heroic)" : "") + coaLabel +
                       " [" + StageName(stage) + "] elapsed " + std::to_string(_totalMs / 1000) + "s";
     // The gear ceiling belongs in the start confirmation: it is the one run
     // parameter with no visible effect until the party is already fighting.
@@ -1214,14 +1227,25 @@ void DcTestRunJob::TickGrouping()
             group->SetGroupMemberFlag(tank->GetGUID(), true, MEMBER_FLAG_MAINTANK);
         }
         if (IsRaidMap())
-            // Classic raids run at raid difficulty 0 (10-man normal); the
-            // heroic flag is a dungeon-mode concept and never reaches here for
-            // a raid row (the registry validation refuses it).
-            group->SetRaidDifficulty(RAID_DIFFICULTY_10MAN_NORMAL);
+        {
+            // CoA opens its classic raids on the RAID difficulty axis: 0 Normal,
+            // 1 Heroic, 2 Mythic, 3 Ascended, all flex-sized up to 25 (Molten
+            // Core's MapDifficulty rows). The run's CoA difficulty is therefore
+            // the raid difficulty itself; 0 keeps stock classic raids at their
+            // only mode. The heroic flag is a dungeon-mode concept and never
+            // reaches here for a raid row (the registry validation refuses it).
+            Difficulty const raidDifficulty = Difficulty(_coaDifficulty);
+            group->SetRaidDifficulty(raidDifficulty);
+            _record.difficulty = raidDifficulty;
+        }
         else
-            group->SetDungeonDifficulty(_coaDifficulty ? Difficulty(_coaDifficulty)
-                                        : _heroic ? DUNGEON_DIFFICULTY_HEROIC
-                                                  : DUNGEON_DIFFICULTY_NORMAL);
+        {
+            Difficulty const dungeonDifficulty = _coaDifficulty ? Difficulty(_coaDifficulty)
+                                                 : _heroic ? DUNGEON_DIFFICULTY_HEROIC
+                                                           : DUNGEON_DIFFICULTY_NORMAL;
+            group->SetDungeonDifficulty(dungeonDifficulty);
+            _record.difficulty = dungeonDifficulty;
+        }
         _tankGuid = tank->GetGUID();
         _groupFormed = true;
     }

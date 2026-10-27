@@ -47,7 +47,7 @@ bool DcTestRunManager::Start(Player* gm, std::string const& dungeonToken,
                              uint32 levelOverride, uint32 seed, bool heroic,
                              DcTestGearTiers::Spec const& gear, std::string* msg,
                              std::string const& planId, StartErr* errOut, std::string* runIdOut,
-                             uint32 size)
+                             uint32 size, uint8 coaDifficulty)
 {
     if (errOut)
         *errOut = StartErr::None;
@@ -72,10 +72,20 @@ bool DcTestRunManager::Start(Player* gm, std::string const& dungeonToken,
         return fail(StartErr::UnknownDungeon,
                     "'" + std::string(row->token) + "' has no heroic mode (classic dungeons have none)");
 
+    // A drawn comp takes a CoA mode on raids only: on a dungeon the mode's
+    // level and item-level floor is met by hand-picked characters (party=).
+    if (coaDifficulty && !DcTestDungeonRegistry::IsRaid(*row))
+        return fail(StartErr::UnknownDungeon,
+                    "a CoA difficulty on a drawn comp is for raids only — use party= on '" +
+                        std::string(row->token) + "'");
+    if (!DcTestDungeonRegistry::OffersDifficulty(*row, coaDifficulty))
+        return fail(StartErr::UnknownDungeon,
+                    "'" + std::string(row->token) + "' has no difficulty " + std::to_string(coaDifficulty));
+
     // The instance's own player cap (Karazhan 10, Gruul 25): the core refuses
     // entry past it, so an oversized run would strand the overflow at the door.
     uint32 const runSize = size ? size : static_cast<uint32>(DcTestComp::kPartySize);
-    if (uint32 const cap = DcTestDungeonRegistry::MaxPlayers(*row);
+    if (uint32 const cap = DcTestDungeonRegistry::MaxPlayers(*row, coaDifficulty);
         !DcTestDungeonRegistry::SizeFits(runSize, cap))
         return fail(StartErr::UnknownDungeon,
                     "'" + std::string(row->token) + "' admits at most " + std::to_string(cap) +
@@ -100,7 +110,7 @@ bool DcTestRunManager::Start(Player* gm, std::string const& dungeonToken,
     std::string err;
     std::unique_ptr<DcTestRunJob> job =
         DcTestRunJob::Create(gm, *row, levelOverride, seed, size, heroic, gear, _reservedGuids,
-                             planId, &err);
+                             planId, &err, coaDifficulty);
     if (!job)
         return fail(StartErr::PoolExhausted, err);
 
@@ -201,6 +211,10 @@ bool DcTestRunManager::StartRoster(Player* gm, std::string const& dungeonToken,
         return fail(StartErr::UnknownDungeon,
                     "'" + std::string(row->token) + "' has no heroic mode (classic dungeons have none)");
 
+    if (!DcTestDungeonRegistry::OffersDifficulty(*row, coaDifficulty))
+        return fail(StartErr::UnknownDungeon,
+                    "'" + std::string(row->token) + "' has no difficulty " + std::to_string(coaDifficulty));
+
     if (!gm || !GET_PLAYERBOT_MGR(gm))
         return fail(StartErr::NoMgr, "no playerbot manager on this account");
 
@@ -217,7 +231,7 @@ bool DcTestRunManager::StartRoster(Player* gm, std::string const& dungeonToken,
     if (parsed.kind != DcTestRoster::Kind::Ok)
         return fail(StartErr::BadRoster, parsed.detail);
 
-    if (uint32 const cap = DcTestDungeonRegistry::MaxPlayers(*row);
+    if (uint32 const cap = DcTestDungeonRegistry::MaxPlayers(*row, coaDifficulty);
         !DcTestDungeonRegistry::SizeFits(parsed.members.size(), cap))
         return fail(StartErr::BadRoster,
                     "'" + std::string(row->token) + "' admits at most " + std::to_string(cap) +

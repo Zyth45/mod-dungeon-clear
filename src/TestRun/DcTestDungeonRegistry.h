@@ -182,14 +182,24 @@ namespace DcTestDungeonRegistry
     inline constexpr std::uint32_t kExpansionWrath = 2;
     std::uint32_t ExpansionOf(Row const& row);
 
-    // The player cap of the instance a run actually enters (difficulty 0 —
-    // DcTestRunJob always sets RAID_DIFFICULTY_10MAN_NORMAL / normal dungeon
-    // difficulty): MapDifficulty.dbc's maxPlayers, falling back to Map.dbc's,
-    // exactly as InstanceMap::GetMaxPlayers resolves it. The core refuses
-    // entry past it (CANNOT_ENTER_MAX_PLAYERS), so a bigger run strands the
-    // overflow at the door. Karazhan is 10, Gruul 25, Molten Core 40. 0 when
-    // the stores do not know the map (unit tests): no cap.
-    std::uint32_t MaxPlayers(Row const& row);
+    // The player cap of the instance a run actually enters at `difficulty`
+    // (0 unless the run asked for a CoA mode): MapDifficulty.dbc's maxPlayers,
+    // falling back to Map.dbc's, exactly as InstanceMap::GetMaxPlayers
+    // resolves it. The core refuses entry past it (CANNOT_ENTER_MAX_PLAYERS),
+    // so a bigger run strands the overflow at the door. Karazhan is 10, Gruul
+    // 25, Molten Core 40 on a stock client (25 on every CoA mode). 0 when the
+    // stores do not know the map (unit tests): no cap.
+    std::uint32_t MaxPlayers(Row const& row, std::uint8_t difficulty = 0);
+
+    // Whether the row's map is a raid (Map.dbc). False for an unknown map.
+    bool IsRaid(Row const& row);
+
+    // Whether the row's map has a MapDifficulty row for `difficulty`. CoA opens
+    // classic raids in four modes on the raid axis (Molten Core: 0 Normal,
+    // 1 Heroic, 2 Mythic, 3 Ascended) and classic dungeons in three; a run
+    // asking for a mode the client data does not describe would enter the
+    // downscaled difficulty instead. Difficulty 0 always passes.
+    bool OffersDifficulty(Row const& row, std::uint8_t difficulty);
 
     // Whether a run of `size` members fits a map capped at `cap` (0 = no cap).
     inline bool SizeFits(std::size_t size, std::uint32_t cap)

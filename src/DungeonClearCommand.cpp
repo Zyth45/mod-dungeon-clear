@@ -431,7 +431,8 @@ public:
         static constexpr char const* kUsage =
             "Usage: .dc test start <dungeon> [heroic] [size=N|10|25] [level=N] [seed=N] "
             "[ilvl=N|none] [quality=normal|uncommon|rare|epic|legendary] [trace=1]\n"
-            "   or: .dc test start <dungeon> party=Tank,Heal,Dps1,Dps2,... [heroic|mythic] [regear] [trace=1]";
+            "   or: .dc test start <dungeon> party=Tank,Heal,Dps1,Dps2,... [heroic|mythic] [regear] [trace=1]\n"
+            "   raids: heroic|mythic|ascended or raiddiff=0-3 picks the CoA raid mode, on either form";
 
         std::string token;
         std::string party;
@@ -479,6 +480,20 @@ public:
                 heroic = true;
             else if (word == "mythic")
                 coaDifficulty = 2;
+            // CoA raid modes: Ascended is the fourth (raid difficulty 3), and
+            // raiddiff=N names any of them by number (0 Normal .. 3 Ascended).
+            else if (word == "ascended")
+                coaDifficulty = 3;
+            else if (word.rfind("raiddiff=", 0) == 0)
+            {
+                unsigned long const n = std::strtoul(word.c_str() + 9, nullptr, 10);
+                if (n > 3)
+                {
+                    handler->SendSysMessage("raiddiff must be 0-3 (Normal, Heroic, Mythic, Ascended).");
+                    return true;
+                }
+                coaDifficulty = static_cast<uint8>(n);
+            }
             else if (word == "regear" || word == "regear=1")
                 regear = true;
             else if (word.rfind("trace=", 0) == 0)
@@ -499,6 +514,22 @@ public:
         if (token.empty())
         {
             handler->SendSysMessage(kUsage);
+            return true;
+        }
+
+        // On a raid, Heroic is a CoA raid mode (raid difficulty 1), never the
+        // stock dungeon heroic the registry's heroicLevel describes.
+        DcTestDungeonRegistry::Row const* raidRow = DcTestDungeonRegistry::Find(token);
+        if (raidRow && !DcTestDungeonRegistry::IsRaid(*raidRow))
+            raidRow = nullptr;
+        if (raidRow && heroic && !coaDifficulty)
+        {
+            coaDifficulty = 1;
+            heroic = false;
+        }
+        if (!raidRow && coaDifficulty == 3)
+        {
+            handler->SendSysMessage("ascended and raiddiff=3 apply to raids only.");
             return true;
         }
 
@@ -537,7 +568,7 @@ public:
                 return true;
             }
             DcTestRunManager::Instance().Start(issuer, token, level, seed, heroic, gear, &msg,
-                                               "", nullptr, &runId, size);
+                                               "", nullptr, &runId, size, raidRow ? coaDifficulty : 0);
         }
         if (trace && !runId.empty() && DcTestRunManager::Instance().EnableTrace(runId))
             msg += " [trace armed: oracles scored at teardown]";
