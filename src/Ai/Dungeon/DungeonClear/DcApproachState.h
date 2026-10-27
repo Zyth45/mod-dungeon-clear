@@ -137,6 +137,7 @@ struct DcApproachState
     uint32 lastObjectiveDiagMs = 0;  // at-objective "near but not arrived" diag throttle (getMSTime)
     uint32 lastTargetEntry     = 0;  // committed boss entry the approach is for
     uint32 lootYieldStartMs    = 0;  // loot-yield commit anchor (getMSTime)
+    uint32 engageHoldSinceMs   = 0;  // first tick of the current at-boss hold (getMSTime)
 
     // --- room-aggro skirt orbit latch -------------------------------------
     // When the room-clear must reach a trash pack on the far side of a boss's

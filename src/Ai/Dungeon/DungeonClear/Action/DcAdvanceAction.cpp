@@ -149,6 +149,9 @@ namespace
     constexpr uint32 DC_WALK_RESNAP_STALL_LIMIT = 4;
     constexpr float DC_WALK_RESNAP_GAIN = 2.0f;
     constexpr float DC_WALK_RESNAP_STEP_MAX = 20.0f;
+    // How long Advance holds at a boss for the at-boss trigger before it says why
+    // at INFO, and how often it says it again.
+    constexpr uint32 DC_ENGAGE_HOLD_REPORT_MS = 60000;
     // Return to routable ground (ShouldReturnToRoutableGround): closer than this
     // the stamp is where the bot already is, and the returns allowed per objective.
     constexpr float DC_ROUTABLE_RETURN_MIN = 15.0f;
@@ -677,6 +680,25 @@ DungeonClearAdvanceAction::Step DungeonClearAdvanceAction::TryEngageHold(Advance
                       IsBetweenPullsReady(bot, context) ? 1 : 0,
                       AI_VALUE(bool, DcKey::Stock::HasAvailableLoot) ? 1 : 0,
                       AI_VALUE(bool, DcKey::Stock::CanLoot) ? 1 : 0);
+            // The same reasons at INFO once the hold has lasted a minute.
+            // tr-20261026-214509-152 and tr-20261027-070016-518 (SM Cathedral)
+            // held 10yd from Fairbanks for ten minutes with nothing at INFO.
+            uint32 const now = getMSTime();
+            if (!st.appr->engageHoldSinceMs)
+                st.appr->engageHoldSinceMs = now;
+            else if (getMSTimeDiff(st.appr->engageHoldSinceMs, now) >= DC_ENGAGE_HOLD_REPORT_MS &&
+                     !DcRun::Of(context).Throttled(DcThrottle::EngageHoldLog, DC_ENGAGE_HOLD_REPORT_MS))
+                LOG_INFO("playerbots.dungeonclear",
+                         "[DC:{}] held {}s within engage range of {} ({:.0f}yd, live={}) for the "
+                         "at-boss trigger [partyReady={} availLoot={} canLoot={} roomTrash={} "
+                         "door={}]",
+                         bot->GetName(), getMSTimeDiff(st.appr->engageHoldSinceMs, now) / 1000,
+                         next->name, engageDist, liveBoss ? 1 : 0,
+                         IsBetweenPullsReady(bot, context) ? 1 : 0,
+                         AI_VALUE(bool, DcKey::Stock::HasAvailableLoot) ? 1 : 0,
+                         AI_VALUE(bool, DcKey::Stock::CanLoot) ? 1 : 0,
+                         AI_VALUE(GuidVector, DcKey::RoomTrashRemaining).size(),
+                         DcEngageGeometry::ClosedDoorBetween(bot, st.bossX, st.bossY, st.bossZ) ? 1 : 0);
             DcMovement::StopBot(bot, DcMovement::Stop::Hold);
             ClearStall(context);
             // Parked at the boss waiting for the at-boss pull — not navigating,
@@ -685,6 +707,7 @@ DungeonClearAdvanceAction::Step DungeonClearAdvanceAction::TryEngageHold(Advance
             return Step::ReturnFalse;
         }
     }
+    st.appr->engageHoldSinceMs = 0;
     return Step::Continue;
 }
 
