@@ -881,9 +881,24 @@ namespace
                 DungeonEventProgress const& prog =
                     context->GetValue<DungeonEventProgress&>(DcKey::EventProgress)->Get();
                 Player* holder = oldest->holder;
+                bool const tankInReach = bot->IsWithinDistInMap(brazier, BRD_BRAZIER_REACH);
+                // tr-20261027-031216-362, -060948-478: a fight between the walk and
+                // this step left the tank on the floor 18-20yd from the north
+                // brazier, under its dais, and the holder trailed it there: nothing
+                // brought either into reach for the step's two minutes. Walk the
+                // tank back onto the stand point; the fetch below then applies.
+                if (!tankInReach && !bot->IsInCombat())
+                {
+                    bool const south = brazierEntry == GO_BRAZIER_S;
+                    bot->GetMotionMaster()->MovePoint(0, south ? BRAZIER_S_X : BRAZIER_N_X,
+                                                      south ? BRAZIER_S_Y : BRAZIER_N_Y,
+                                                      south ? BRAZIER_S_Z : BRAZIER_N_Z,
+                                                      FORCED_MOVEMENT_NONE, 0.0f, 0.0f,
+                                                      /*generatePath*/ true, false);
+                }
                 bool const fetch = holder != bot &&
                                    getMSTimeDiff(prog.stepStartMs, getMSTime()) >= BRD_TORCH_FETCH_MS &&
-                                   bot->IsWithinDistInMap(brazier, BRD_BRAZIER_REACH);
+                                   tankInReach;
                 if (fetch)
                 {
                     LOG_INFO("playerbots.dungeonclear",
