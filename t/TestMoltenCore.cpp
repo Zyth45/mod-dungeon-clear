@@ -11,7 +11,8 @@
 
 // Molten Core (map 409) — raid-support Plan E1 data. The eight statics derive
 // from BossSpawnIndex at runtime; these tests pin the authored finale: the two
-// script-summoned bosses and the Ragnaros summon event.
+// script-summoned bosses and the Ragnaros summon event, plus the Golemagg /
+// Sulfuron swap to the clear path.
 
 namespace
 {
@@ -40,9 +41,16 @@ TEST(DcMoltenCoreTest, RosterAppendsTheFinaleInOrder)
         BossRosterRegistry::Apply(kMap, DcDiffKey::Raid(0), Statics());
     ASSERT_EQ(out.size(), 11u);
 
-    // The eight statics keep their derived order...
-    for (uint32 i = 0; i < 8; ++i)
+    // The first six statics keep their derived order...
+    for (uint32 i = 0; i < 6; ++i)
         EXPECT_EQ(out[i].encounterIndex, i) << i;
+
+    // ...Golemagg (bit 7) comes before Sulfuron (bit 6), the clear path, with
+    // both kill bits untouched...
+    EXPECT_EQ(out[6].entry, 11988u);
+    EXPECT_EQ(out[6].encounterIndex, 7u);
+    EXPECT_EQ(out[7].entry, 12098u);
+    EXPECT_EQ(out[7].encounterIndex, 6u);
 
     // ...then Majordomo, the summon objective, and Ragnaros.
     EXPECT_EQ(out[8].entry, 12018u);

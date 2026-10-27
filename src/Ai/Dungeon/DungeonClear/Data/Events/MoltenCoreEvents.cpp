@@ -27,9 +27,20 @@
 //     (UpdateEncounterState + SetBossState(8, DONE)), turns him friendly and
 //     teleports him to the Ragnaros chamber. Completion is therefore read off
 //     the instance BOSS-STATE SLOT (doneBossStateIndex 8) — never a corpse,
-//     which will never exist. Engaging him normally starts the add fight; the
-//     playerbots `moltencore` strategy target-excludes Majordomo himself, so
-//     the raid fights the adds while the boss stand-down keeps DC's hands off.
+//     which will never exist. Engaging him normally starts the add fight
+//     while the boss stand-down keeps DC's hands off. On CoA the adds are not
+//     the end: once they are dead he is fought down to 20% and only then
+//     yields (and Sacrificial Chains, 92030, joins every ~50s); the CoA
+//     playerbots `moltencore` strategy no longer target-excludes him for that
+//     reason. CoA also leaves a portal (181623) at his battle spot once he
+//     yields, to the Ragnaros lair entrance; DC walks instead, as the portal
+//     would split the raid.
+//
+//   * CLEAR ORDER. The DBC bits put Sulfuron (6) before Golemagg (7). On the
+//     map Golemagg's lava lake sits 50yd below Baron Geddon and Sulfuron's
+//     alcove 140yd from Majordomo's chamber, so the classic path is Geddon ->
+//     Golemagg -> Sulfuron -> Majordomo; the bit order sends the raid 260yd to
+//     Sulfuron and back. p.reorder fixes the path, the kill bits are untouched.
 //   * RAGNAROS (11502, boss-state slot 9). Summoned only by GOSSIP (menu 4108,
 //     option 0) on the teleported, friendly Majordomo. ~48s of scripted RP
 //     during which he is immune, then HE pulls the whole raid
@@ -57,14 +68,18 @@ namespace
 
     constexpr uint32 kMajordomo = 12018;
     constexpr uint32 kRagnaros  = 11502;
+    constexpr uint32 kSulfuron  = 12098;
+    constexpr uint32 kGolemagg  = 11988;
 
     // molten_core.h boss-state slots.
     constexpr int32 kSlotMajordomo = 8;
     constexpr int32 kSlotRagnaros  = 9;
 
     // boss_majordomo_executus.cpp authored positions.
-    // Majordomo's battle spawn (the add fight):
-    constexpr float kMajX = 759.542f, kMajY = -1173.43f, kMajZ = -118.974f;
+    // Majordomo's battle spawn (the add fight). CoA moved MajordomoSummonPos to
+    // the room's real centre, read off `.gps` on the floor (Z -120.09); the
+    // stock (759.5,-1173.4,-119.0) sits 18yd off it, against the east wall.
+    constexpr float kMajX = 742.1174f, kMajY = -1181.1216f, kMajZ = -120.0913f;
     // His post-victory teleport spot by Ragnaros' lair (the gossip target):
     constexpr float kRagGossipX = 848.933f, kRagGossipY = -812.875f, kRagGossipZ = -229.601f;
     // Ragnaros' summon position (the fight anchor):
@@ -129,8 +144,13 @@ void RegisterMoltenCoreRoster(std::vector<BossRosterPatch>& t)
     BossRosterPatch p;
     p.mapId = kMapId;
 
-    // The eight statics keep their derived DBC order (bits 0-7 match the
-    // classic clear path). The finale slots in after them.
+    // The eight statics keep their derived DBC order (bits 0-7), except the
+    // last two, swapped to the clear path (see the header): Golemagg, then
+    // Sulfuron. The finale slots in after them.
+    p.reorder = {
+        {kGolemagg, 6},
+        {kSulfuron, 7},
+    };
     p.add.push_back(MakeBoss(kMajordomo, kMapId, "Majordomo Executus",
                              kMajX, kMajY, kMajZ, /*completionFrom*/ 0,
                              /*orderOverride*/ 8, kSlotMajordomo));
