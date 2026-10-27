@@ -5,6 +5,7 @@
 
 #include "gtest/gtest.h"
 
+#include "Ai/Dungeon/DungeonClear/Data/DcHazardRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Data/DungeonEventRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Overrides/BossRosterRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcDifficulty.h"
@@ -93,4 +94,19 @@ TEST(DcMoltenCoreTest, SummonRagnarosEventShape)
     EXPECT_TRUE(wait.wantAlive);
     // Must outlast the ~48s scripted intro.
     EXPECT_GE(wait.timeoutMs, 60000u);
+}
+
+TEST(DcMoltenCoreTest, HotCoalTrapIsVacatedClearOfItsOwnCylinder)
+{
+    // The fire trap beside CoA's Majordomo spot: kept out of placements, and its
+    // retreat aim (vacate + slack) must read clean against its own cylinder.
+    DcTrapHazard const* coal = DcHazardRegistry::FindTrap(kMap, 178164);
+    ASSERT_NE(coal, nullptr);
+    EXPECT_GT(coal->vacateRadius, 0.0f);
+    EXPECT_GT(coal->retreatSlack, coal->holdBand);
+    float const aim = coal->vacateRadius + coal->retreatSlack;
+    EXPECT_FALSE(DcHazardRegistry::PointInside(*coal, 0.0f, 0.0f, 0.0f, aim, 0.0f, 0.0f));
+    EXPECT_TRUE(DcHazardRegistry::PointInside(*coal, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f));
+    // The inert coal pile beside it is a door-registry prop, not a trap.
+    EXPECT_EQ(DcHazardRegistry::FindTrap(kMap, 177000), nullptr);
 }

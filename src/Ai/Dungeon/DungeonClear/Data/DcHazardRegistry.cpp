@@ -718,7 +718,7 @@ namespace
     // Guard (17461 normal, SmartAI on-death SetData 2) or Porung (20923 heroic,
     // boss_porung::JustDied) cancels the scout's whole scheduler — waves and
     // arrows together. See ShatteredHallsEvents.cpp, which sequences exactly that.
-    constexpr std::array<DcTrapHazard, 2> kTrapHazards = {{
+    constexpr std::array<DcTrapHazard, 3> kTrapHazards = {{
         //                   radius  zBand  vacate  hold  slack
         // Blaze — the 60s fire patch a flame arrow leaves on the gauntlet floor.
         { 540, 181915, 5.0f, 6.0f, 3.5f, 2.0f, 6.0f },
@@ -729,6 +729,13 @@ namespace
         // that has fired is gone for 120s, so there is nothing left to step off,
         // and a retreat across the Rookery would only hatch more.
         { 229, 175124, 3.0f, 4.0f, 0.0f, 2.0f, 6.0f },
+        // Hot Coal (Molten Core) — the permanent fire trap (type 6, 10yd
+        // diameter, spell 20533, 1s cooldown) at (736.7,-1176.3,-118.1), beside
+        // the inert 177000 coal pile. CoA moved MajordomoSummonPos to the room's
+        // centre (742.1,-1181.1), 5.7yd from it, so the Majordomo add fight is
+        // fought on its rim. 6yd keep-out off the 5yd trigger radius; vacate at
+        // the trigger radius, the cast spell's own radius being unread.
+        { 409, 178164, 6.0f, 4.0f, 5.0f, 2.0f, 6.0f },
     }};
 }
 
