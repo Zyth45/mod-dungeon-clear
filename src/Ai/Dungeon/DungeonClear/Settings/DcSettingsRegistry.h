@@ -197,6 +197,10 @@ inline constexpr DcSettingDef kDcSettings[] =
     // DcStrandedRecovery.
     { "StrandedRecovery",              DcType::Bool,   1,   0,    1,  true  },
     { "StrandedRecoveryNoProgressSecs", DcType::UInt,  60,  60, 3600,  true  },
+    // The between-pulls half of the same failsafe: how long the tank waits out of
+    // a fight on a bot member out of range before it is brought over. Capped by
+    // StrandedRecoveryNoProgressSecs.
+    { "StrandedRecoveryWaitSecs",      DcType::UInt,  25,  10, 3600,  false },
 
     // Unreachable-holder combat purge. The other half of "the run has frozen":
     // not a member stranded out of range, but a MOB stranded out of reach that

@@ -379,6 +379,17 @@ DungeonClear.StrandedRecovery = 1
 DungeonClear.StrandedRecoveryNoProgressSecs = 60
 
 #
+#    DungeonClear.StrandedRecoveryWaitSecs
+#        Stranded recovery only. Seconds the tank may stand between pulls, out of
+#        combat, waiting on a bot member that is out of range before that member
+#        is teleported to it. Capped by StrandedRecoveryNoProgressSecs.
+#
+#        Default: 25
+#
+
+DungeonClear.StrandedRecoveryWaitSecs = 25
+
+#
 #    DungeonClear.UnreachableCombatPurgeSecs
 #        The other half of "the run has frozen". Not a party member stranded out
 #        of range, but a MOB stranded out of REACH that has the party in combat

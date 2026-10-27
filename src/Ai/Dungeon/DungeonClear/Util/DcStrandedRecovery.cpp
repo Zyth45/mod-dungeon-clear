@@ -22,6 +22,7 @@
 #include "Ai/Dungeon/DungeonClear/Util/DcStrandedDecision.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcTargeting.h"
 
+#include <algorithm>
 #include <cmath>
 #include <optional>
 #include <string>
@@ -253,8 +254,14 @@ namespace DcStrandedRecovery
         // stuck all the same: members pinned at a camp they cannot path to, the
         // tank yielding "Waiting on X (out of range)" between its pulls (user
         // test, Gnomeregan, 24/10: three bots on a gantry for minutes). Waiting
-        // that long between pulls, out of a fight, counts as no progress.
+        // that long between pulls, out of a fight, counts as no progress. The wait
+        // has its own, shorter clock: on the NUC (26-27/10, 437 successful runs)
+        // nearly a third of all "Waiting on X (out of range)" time was waits that
+        // ran the full 60s into this rescue.
         {
+            uint32 const waitTimeoutMs =
+                std::min(DcSettings::GetUInt(bot, "StrandedRecoveryWaitSecs") * 1000,
+                         in.noProgressTimeoutMs);
             DcApproachState const& appr =
                 leaderAI->GetAiObjectContext()->GetValue<DcApproachState&>(DcKey::ApproachState)->Get();
             // Bots tick on the map threads, several instances at once.
@@ -265,7 +272,7 @@ namespace DcStrandedRecovery
             if (appr.partyNotReadyTicks == 0 || partyEngaged)
                 notReadySince.erase(owner);
             else if (auto [it, fresh] = notReadySince.emplace(owner, now);
-                     !fresh && now - it->second >= in.noProgressTimeoutMs)
+                     !fresh && now - it->second >= waitTimeoutMs)
                 in.lastProgressMs = now - in.noProgressTimeoutMs - 1;
         }
         in.partyEngaged = partyEngaged;
