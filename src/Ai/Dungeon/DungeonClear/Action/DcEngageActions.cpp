@@ -2962,6 +2962,21 @@ bool DungeonClearDoorBlockedAction::Execute(Event event)
                      bot->GetName(), door->GetGUID().ToString());
             return true;
         }
+        // Still fighting him: the gate opens on his death (above), so wait for it
+        // rather than pause. tr-20261027-074834-559 (heroic) auto-paused at 175372
+        // with four members on Barthilas at 19% on the far side, and the 60s pause
+        // limit ended the run before he died.
+        if (door && (door->GetEntry() == 175372 || door->GetEntry() == 175377) &&
+            DcEngageGeometry::IsDoorClosed(door) &&
+            door->HasGameObjectFlag(GO_FLAG_NOT_SELECTABLE))
+        {
+            Creature* const barthilas = DcTargeting::FindLiveCreatureOnMap(bot, 10435);
+            if (barthilas && barthilas->IsInCombat())
+            {
+                StallDungeonClearForDoor(botAI, waitReason);
+                return true;
+            }
+        }
 
         // Uldaman: the Seal of Khaz'Mul opens 27s after the Keystone (124371) is
         // used; the same SmartAI unseals Ironaya. The "Unseal Ironaya" event does
