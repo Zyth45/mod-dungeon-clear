@@ -65,6 +65,7 @@
 #include "World.h"
 #include "Ai/Dungeon/DungeonClear/Data/DungeonBossInfo.h"
 #include "Ai/Dungeon/DungeonClear/Util/ChunkedPathfinder.h"
+#include "Ai/Dungeon/DungeonClear/Util/DcDifficulty.h"
 #include "Ai/Dungeon/DungeonClear/Util/DungeonPathFollower.h"
 #include "Ai/Dungeon/DungeonClear/Util/NavmeshSnap.h"
 #include "Ai/Dungeon/DungeonClear/Value/DungeonClearLiveBossValue.h"
@@ -579,8 +580,10 @@ bool DcEngageGeometry::EnRouteSweepApplies(Player* bot)
     // to exist, and its pull profile is tuned against measured baselines. Checked
     // before the table so a map that later earns a row cannot arm heroic by
     // accident. IsHeroic (not a raw difficulty compare) so a 25-man NORMAL
-    // raid — whose raw difficulty is also 1 — is not misread as heroic.
-    if (map->IsHeroic())
+    // raid — whose raw difficulty is also 1 — is not misread as heroic, and a
+    // CoA Mythic/Ascended classic raid (raw 2/3) neither: no heroic layer arms
+    // PullEnRouteAvoid there (DcDifficulty::IsHeroicTier).
+    if (DcDifficulty::IsHeroicTier(map))
         return false;
     return RouteSweepRegistry::SweepsRoute(map->GetId());
 }

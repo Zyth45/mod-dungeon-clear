@@ -15,4 +15,14 @@ namespace DcDifficulty
             return {};
         return { map->IsRaid(), static_cast<uint8>(map->GetDifficulty()) };
     }
+
+    bool IsHeroicTier(Map const* map)
+    {
+        if (!map || !map->IsHeroic())
+            return false;
+        if (!map->IsRaid())
+            return true;
+        MapEntry const* entry = map->GetEntry();
+        return entry && entry->Expansion() > 0;
+    }
 }

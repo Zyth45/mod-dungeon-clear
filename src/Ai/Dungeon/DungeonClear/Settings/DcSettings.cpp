@@ -19,6 +19,7 @@
 #include "ObjectAccessor.h"
 #include "Player.h"
 
+#include "Ai/Dungeon/DungeonClear/Util/DcDifficulty.h"
 #include "Ai/Dungeon/DungeonClear/Util/DungeonClearUtil.h"
 
 namespace
@@ -300,7 +301,9 @@ namespace
     // its heroic layer on a heroic-tier raid (10H/25H, when WotLK raids arrive).
     // Map::IsHeroic/IsRaid decode the difficulty per map type, so a 25-man
     // NORMAL raid (raw difficulty 1, the same integer as dungeon heroic) can
-    // never read the heroic layer by encoding collision — see DcDiffKey.
+    // never read the heroic layer by encoding collision — see DcDiffKey. A
+    // classic raid never reads it at all: its raw 2/3 are CoA Mythic/Ascended,
+    // not a heroic tier (DcDifficulty::IsHeroicTier).
     //
     // The override is deliberately difficulty-BLIND and sits above both layers:
     // a human who typed a value for this run means it for this run, and a
@@ -328,7 +331,7 @@ namespace
             {
                 if (hasRaid && map->IsRaid())
                     return RaidConfValue(d);
-                if (hasHeroic && map->IsHeroic())
+                if (hasHeroic && DcDifficulty::IsHeroicTier(map))
                     return ConfValue(d, /*heroic*/ true);
             }
         }

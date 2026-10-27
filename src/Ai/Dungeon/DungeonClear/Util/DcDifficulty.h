@@ -67,6 +67,15 @@ namespace DcDifficulty
     // whole grid system dumped into their namespace. null map -> default key
     // (dungeon normal).
     DcDiffKey Of(Map const* map);
+
+    // Heroic TIER for the module's tuning layers: Map::IsHeroic, except on a
+    // classic raid. CoA opens classic raids in four modes on the raid axis
+    // (0 Normal, 1 Heroic, 2 Mythic, 3 Ascended), which Map::IsHeroic reads
+    // with the WotLK 10H/25H encoding — CoA Mythic and Ascended would come out
+    // heroic and CoA Heroic not. None of the four is the 5-man heroic profile
+    // the heroic layer is tuned for, and the raid layer already governs every
+    // raid mode, so a classic raid is never heroic-tier here.
+    bool IsHeroicTier(Map const* map);
 }
 
 #endif  // _PLAYERBOT_DCDIFFICULTY_H
