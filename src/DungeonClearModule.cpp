@@ -74,6 +74,7 @@
 #include "Ai/Dungeon/DungeonClear/Util/DcRunTravelGuard.h"
 #include "Group.h"
 #include "Map.h"
+#include "InstanceSaveMgr.h"
 
 // Per-class context registries — each owns its own shared static lists.
 #include "DKAiObjectContext.h"
@@ -865,6 +866,13 @@ public:
         bool const allowed = DcRunTravelGuard::AllowScope::Active();
         if (fromMap == mapid || allowed)
             return true;
+        if (InstanceDiscarded(player))
+        {
+            LOG_INFO("playerbots.dungeonclear",
+                     "[DC:{}] travel guard: let a teleport from map {} to map {} through, the instance was reset",
+                     player->GetName(), fromMap, mapid);
+            return true;
+        }
         if (!DcRunTravelGuard::VetoTeleport(Facts(player), fromMap, mapid, allowed))
             return true;
         LOG_INFO("playerbots.dungeonclear",
@@ -901,6 +909,23 @@ public:
     }
 
 private:
+    // The daily Heroic/Mythic reset unbinds everyone, then sends them to the
+    // graveyard and later home (Map::RemoveAllPlayers). Refusing those leaves the
+    // map undestroyable and the party frozen, so a player whose bind no longer
+    // points at the instance they stand in is let out.
+    static bool InstanceDiscarded(Player* player)
+    {
+        Map* map = player->GetMap();
+        if (!map || !map->IsDungeon())
+            return false;
+        InstanceSave* save = sInstanceSaveMgr->GetInstanceSave(map->GetInstanceId());
+        if (!save)
+            return true;
+        InstancePlayerBind* bind = sInstanceSaveMgr->PlayerGetBoundInstance(
+            player->GetGUID(), map->GetId(), Difficulty(map->GetSpawnMode()));
+        return !bind || bind->save != save;
+    }
+
     static DcRunTravelGuard::Facts Facts(Player* player)
     {
         DcRunTravelGuard::Facts f;
