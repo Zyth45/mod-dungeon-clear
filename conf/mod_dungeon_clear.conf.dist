@@ -1812,11 +1812,11 @@ DungeonClear.TestRun.DriverAccount = "dcdriver"
 #
 #   SELF-FOUND GROUPS (DungeonClear.SelfFound.*)
 #
-#   With AiPlayerbot.CoaSelfFoundBotsPercent above 0 (playerbots.conf; the
-#   launcher's self-found preset sets 20, the default 0 turns all this off), a
+#   With AiPlayerbot.CoaSelfFoundBotsPercent above 0 (playerbots.conf; its
+#   default -1 means 20 on a Solo self-found realm and 0, all this off, elsewhere), a
 #   share of the random bots is self-found: they keep the gear they loot. Every
 #   IntervalS, five of them of one faction are sent through a classic dungeon
-#   of their level, at every level: Ragefire Chasm at 11-18, Wailing Caverns
+#   of their level, at every level: Ragefire Chasm at 13-18, Wailing Caverns
 #   and the Deadmines around 20, Shadowfang Keep, Blackfathom Deeps, ... up to
 #   the level 60 dungeons. The dungeon is drawn among those the free bots can
 #   fill, weighted by how many could go, so the most populated levels get the
