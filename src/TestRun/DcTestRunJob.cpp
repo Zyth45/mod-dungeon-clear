@@ -1815,6 +1815,13 @@ void DcTestRunJob::TickStarting()
         // The run must never wait for a human: kill the WaitAtBoss pre-pull
         // hold for this run whatever the conf says.
         DcSettings::SetOverride(_tankGuid, "WaitAtBoss", 0.0);
+        for (auto const& [key, value] : _runOverrides)
+        {
+            std::string err;
+            if (!DcSettings::SetOverride(_tankGuid, key, value, &err))
+                LOG_WARN("playerbots.dungeonclear", "TESTRUN {} run override {}={} refused: {}",
+                         _record.runId, key, value, err);
+        }
         _dcOnIssued = true;
     }
 
@@ -2289,10 +2296,20 @@ void DcTestRunJob::TickMonitoring(uint32 dt)
         }
         CaptureExtras(tank);
 
+        // After a wipe retry: `dc on` again until it sticks. Until then the run
+        // is off by our own hand, not disabled.
+        if (_wipeRetryDcOn)
+        {
+            if (rs.enabled)
+                _wipeRetryDcOn = false;
+            else if (tank->IsAlive())
+                tankAI->DoSpecificAction("dc on", Event("dc", "", FindGm()), true);
+        }
+
         // The disable funnel notifies OnRunDisabled; this catches any path
         // that somehow bypassed it (belt and braces — enabled off without a
         // callback still ends the run).
-        if (!obs.disableFired && !rs.enabled)
+        if (!_wipeRetryDcOn && !obs.disableFired && !rs.enabled)
         {
             obs.disableFired = true;
             std::lock_guard<std::mutex> lock(_obsMutex);
@@ -2541,6 +2558,9 @@ void DcTestRunJob::TickMonitoring(uint32 dt)
         obs.sinceProgressMs = _sinceProgressMs;
     }
 
+    if (_wipeRetriesLeft && TryWipeRetry(obs))
+        return;
+
     DcTestRun::Verdict const verdict = DcTestRun::Classify(obs, _limits);
     if (!DcTestRun::IsTerminal(verdict))
         return;
@@ -2628,6 +2648,63 @@ void DcTestRunJob::FailSetup(std::string const& why)
     LOG_INFO("playerbots.dungeonclear", "TESTRUN {} setup failed at {}: {}",
              _record.runId, _record.setupStage, why);
     Teardown();
+}
+
+bool DcTestRunJob::TryWipeRetry(DcTestRun::Observation const& obs)
+{
+    if (obs.abortRequested || obs.elapsedMs >= _limits.overallTimeoutMs ||
+        (obs.disableFired && obs.disableAllCleared))
+        return false;
+
+    Player* tank = FindTank();
+    bool const wiped = obs.partyWiped && obs.wipedForMs >= _limits.wipeGraceMs;
+    bool const disabledOnCorpses = obs.disableFired && AnyMemberDead(tank);
+    if (!wiped && !disabledOnCorpses)
+        return false;
+
+    // A survivor still fighting: let the fight end first (the verdict waits).
+    for (Slot const& slot : _slots)
+        if (Player* bot = ObjectAccessor::FindPlayer(slot.guid); bot && bot->IsAlive() && bot->IsInCombat())
+            return true;
+
+    --_wipeRetriesLeft;
+    ++_record.wipeRetries;
+    DcTestRun::Engagement const blame = DeathBlame();
+    ClosePull(true);
+    LOG_INFO("playerbots.dungeonclear",
+             "TESTRUN {} wipe retry {} ({}): party revived at the entrance, run resumes ({} left)",
+             _record.runId, _record.wipeRetries, blame.Empty() ? std::string("no blame") : blame.name,
+             _wipeRetriesLeft);
+
+    for (Slot const& slot : _slots)
+    {
+        Player* bot = ObjectAccessor::FindPlayer(slot.guid);
+        if (!bot || !bot->IsInWorld())
+            continue;
+        PrepareForTeleport(bot);
+        bot->SetFullHealth();
+        if (bot->GetMaxPower(POWER_MANA))
+            bot->SetPower(POWER_MANA, bot->GetMaxPower(POWER_MANA));
+        if (!bot->IsBeingTeleported())
+        {
+            DcRunTravelGuard::AllowScope const allow;
+            bot->TeleportTo(_mapId, _x, _y, _z, _o);
+        }
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(_obsMutex);
+        _disableFired = false;
+        _disableAllCleared = false;
+        _disableReason.clear();
+    }
+    _wipedForMs = 0;
+    _pausedForMs = 0;
+    _stalledForMs = 0;
+    _progressClock.sinceMs = 0;
+    _sinceProgressMs = 0;
+    _wipeRetryDcOn = true;
+    return true;
 }
 
 void DcTestRunJob::Finish(DcTestRun::Verdict verdict, std::string const& failReason)

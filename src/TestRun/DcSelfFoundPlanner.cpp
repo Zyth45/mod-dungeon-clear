@@ -8,13 +8,18 @@
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
+#include <iterator>
+#include <map>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "AscensionAverageItemLevel.h"
 #include "CoaSpecialization.h"
 #include "Common.h"
+#include "GameTime.h"
 #include "LFGMgr.h"
 #include "Log.h"
 #include "Map.h"
@@ -47,6 +52,29 @@ namespace
 
     std::vector<Party> _parties;  // world thread only
     uint32 _accumMs = 0;
+
+    // After a failed run (wipe, no progress...) its members rest for
+    // SelfFound.WipeCooldownMin; and whatever the result, the same five are
+    // not sent together again before that long. Unix seconds.
+    std::unordered_map<ObjectGuid::LowType, time_t> _cooldownUntil;
+    std::map<std::string, time_t> _recentParties;  // sorted guid list -> until
+
+    std::string Signature(std::vector<ObjectGuid::LowType> lows)
+    {
+        std::sort(lows.begin(), lows.end());
+        std::string out;
+        for (ObjectGuid::LowType low : lows)
+            out += std::to_string(low) + ",";
+        return out;
+    }
+
+    void PruneCooldowns(time_t now)
+    {
+        for (auto it = _cooldownUntil.begin(); it != _cooldownUntil.end();)
+            it = it->second <= now ? _cooldownUntil.erase(it) : std::next(it);
+        for (auto it = _recentParties.begin(); it != _recentParties.end();)
+            it = it->second <= now ? _recentParties.erase(it) : std::next(it);
+    }
 
     enum class Role
     {
@@ -102,8 +130,11 @@ namespace
     }
 
     // The classic 5-man dungeons with the levels a self-found member may have
-    // there: the dungeon's range, opened `window` levels lower.
-    std::vector<Dungeon> ClassicDungeons(uint32 window)
+    // there: the dungeon's range, opened `window` levels lower, except for the
+    // dungeons that start below `strictBelow` (RFC, WC, Deadmines): a bot
+    // under their minimum, with the gear it found, only wipes there (Laptop-mini
+    // 29/10: two level 11 parties wiped on RFC's first packs).
+    std::vector<Dungeon> ClassicDungeons(uint32 window, uint32 strictBelow)
     {
         std::vector<Dungeon> out;
         for (DcTestDungeonRegistry::Row const& row : DcTestDungeonRegistry::All())
@@ -117,7 +148,7 @@ namespace
             for (Range const& range : kRanges)
                 if (!std::strcmp(range.token, row.token))
                 {
-                    lo = range.lo > window ? range.lo - window : 1;
+                    lo = range.lo < strictBelow ? range.lo : range.lo - window;
                     hi = range.hi;
                     break;
                 }
@@ -143,6 +174,9 @@ namespace
             return false;
 
         ObjectGuid const guid = bot->GetGUID();
+        if (auto const it = _cooldownUntil.find(guid.GetCounter());
+            it != _cooldownUntil.end() && it->second > GameTime::GetGameTime().count())
+            return false;
         if (sLFGMgr->GetState(guid) != lfg::LFG_STATE_NONE || RandomBotLevelMgr::IsHeld(guid) ||
             DcTestRunManager::Instance().IsReserved(guid) || CoaLfgOfferedToOther(bot, nullptr))
             return false;
@@ -217,16 +251,18 @@ namespace
         std::vector<Candidate const*> pool = option.pool;
         std::vector<Candidate const*> party;
 
+        // The upper part of the range first: the leader is the highest-level
+        // tank (the pool is shuffled, so a random one among equals), or with no
+        // tank by spec the highest-level, then sturdiest, non-healer; the rest
+        // is taken nearest to its level.
         auto lead = pool.end();
         for (auto it = pool.begin(); it != pool.end(); ++it)
         {
             bool const fits = option.specTank ? (*it)->role == Role::Tank : (*it)->role != Role::Heal;
-            if (fits && (lead == pool.end() || option.specTank || (*it)->maxHealth > (*lead)->maxHealth))
-            {
+            if (fits && (lead == pool.end() || (*it)->level > (*lead)->level ||
+                         ((*it)->level == (*lead)->level && !option.specTank &&
+                          (*it)->maxHealth > (*lead)->maxHealth)))
                 lead = it;
-                if (option.specTank)
-                    break;  // the pool is shuffled: the first tank is a random one
-            }
         }
         if (lead == pool.end())
             return {};
@@ -254,6 +290,9 @@ namespace
     {
         uint32 const window = DcSettings::GetUInt(ObjectGuid::Empty, "SelfFound.LevelWindow");
         uint32 const fallbackMax = DcSettings::GetUInt(ObjectGuid::Empty, "SelfFound.RoleFallbackMaxLevel");
+        uint32 const strictBelow = DcSettings::GetUInt(ObjectGuid::Empty, "SelfFound.StrictMinBelowLevel");
+        time_t const now = GameTime::GetGameTime().count();
+        PruneCooldowns(now);
 
         std::vector<Candidate> candidates;
         for (auto const& [guid, bot] : sRandomPlayerbotMgr.GetAllBots())
@@ -271,7 +310,7 @@ namespace
 
         // Every (dungeon, faction) a party could be formed for, weighted by the
         // bots it could take: the most populated levels get the most parties.
-        std::vector<Dungeon> const dungeons = ClassicDungeons(window);
+        std::vector<Dungeon> const dungeons = ClassicDungeons(window, strictBelow);
         std::vector<Option> options;
         uint32 totalWeight = 0;
         for (Dungeon const& dungeon : dungeons)
@@ -318,6 +357,16 @@ namespace
         if (party.size() != 5)
             return;
 
+        std::vector<ObjectGuid::LowType> lows;
+        for (Candidate const* member : party)
+            lows.push_back(member->bot->GetGUID().GetCounter());
+        std::string const signature = Signature(lows);
+        if (_recentParties.count(signature))
+        {
+            LOG_DEBUG("playerbots.dungeonclear", "SELFFOUND same party as a recent run, not resent");
+            return;
+        }
+
         // Roles are positional: tank, healer, then the three dps.
         std::string spec;
         float ilvl = 0.f;
@@ -345,6 +394,33 @@ namespace
             return;
         }
 
+        // Cautious pulls and full rests for this run only: a self-found party
+        // wears what it found, often next to nothing (ilvl 5 at level 11). The
+        // weaker its gear for its level, the smaller the pulls.
+        uint32 const level = maxLevel;
+        uint32 const gearedPct = DcSettings::GetUInt(ObjectGuid::Empty, "SelfFound.GearedIlvlPct");
+        bool const weak = ilvl * 100.f < float(level * gearedPct);
+        std::vector<std::pair<std::string, double>> overrides;
+        if (DcSettings::GetBool(ObjectGuid::Empty, "SelfFound.Cautious"))
+        {
+            overrides.emplace_back("PullDynamicMaxLeeroyMobs",
+                                   DcSettings::GetUInt(ObjectGuid::Empty, weak ? "SelfFound.PullMaxMobs"
+                                                                               : "SelfFound.PullMaxMobsGeared"));
+            overrides.emplace_back("PullForceAdvanced", weak ? 1.0 : 0.0);
+            overrides.emplace_back("PullEnRouteAvoid", 1.0);
+            overrides.emplace_back("SmartRest", 1.0);
+            overrides.emplace_back("SmartRestHealthPct",
+                                   DcSettings::GetUInt(ObjectGuid::Empty, "SelfFound.RestHealthPct"));
+            overrides.emplace_back("SmartRestDpsManaPct",
+                                   DcSettings::GetUInt(ObjectGuid::Empty, "SelfFound.RestManaPct"));
+            overrides.emplace_back("SmartRestHealerManaPct",
+                                   DcSettings::GetUInt(ObjectGuid::Empty, "SelfFound.RestHealerManaPct"));
+        }
+        DcTestRunManager::Instance().SetRunOptions(runId, std::move(overrides),
+                                                   DcSettings::GetUInt(ObjectGuid::Empty, "SelfFound.WipeRetries"));
+        _recentParties[signature] =
+            now + time_t(DcSettings::GetUInt(ObjectGuid::Empty, "SelfFound.WipeCooldownMin")) * MINUTE;
+
         Party started;
         started.runId = runId;
         for (Candidate const* member : party)
@@ -354,11 +430,11 @@ namespace
         }
         _parties.push_back(std::move(started));
         LOG_INFO("playerbots.dungeonclear",
-                 "SELFFOUND START {} dungeon={} levels={}-{} faction={} ilvl={:.1f} tank={} party={} "
+                 "SELFFOUND START {} dungeon={} levels={}-{} faction={} ilvl={:.1f} gear={} tank={} party={} "
                  "(pool {} of {} free, {} options; {} self-found parties)",
                  runId, row->token, minLevel, maxLevel, chosen->team == TEAM_ALLIANCE ? "alliance" : "horde", ilvl,
-                 chosen->specTank ? "spec" : "fallback", spec, chosen->pool.size(), candidates.size(),
-                 options.size(), _parties.size());
+                 weak ? "weak" : "ok", chosen->specTank ? "spec" : "fallback", spec, chosen->pool.size(),
+                 candidates.size(), options.size(), _parties.size());
     }
 }
 
@@ -372,6 +448,15 @@ namespace DcSelfFoundPlanner
             members += Acore::StringFormat("{}{} {}:{:.1f}->{:.1f}/{}", members.empty() ? "" : " ", c.name, c.level,
                                            c.itemLevel, c.itemLevelAfter, c.itemsChanged);
 
+        // A failed run: its members rest before another dungeon.
+        if (rec.result != "success")
+        {
+            time_t const until = GameTime::GetGameTime().count() +
+                                 time_t(DcSettings::GetUInt(ObjectGuid::Empty, "SelfFound.WipeCooldownMin")) * MINUTE;
+            for (DcTestRunRecord::CompEntry const& c : rec.comp)
+                _cooldownUntil[ObjectGuid(c.guid).GetCounter()] = until;
+        }
+
         for (auto it = _parties.begin(); it != _parties.end(); ++it)
             if (it->runId == rec.runId)
             {
@@ -381,9 +466,10 @@ namespace DcSelfFoundPlanner
             }
 
         LOG_INFO("playerbots.dungeonclear",
-                 "SELFFOUND END {} dungeon={} level={} result={} bosses={}/{} duration={}s ilvl={:.1f}->{:.1f} "
-                 "members=[{}] ({} self-found parties left)",
-                 rec.runId, rec.dungeon, rec.level, rec.result, rec.bossesKilled, rec.bossesTotal, rec.durationS,
+                 "SELFFOUND END {} dungeon={} level={} result={} bosses={}/{} wipeRetries={} duration={}s "
+                 "ilvl={:.1f}->{:.1f} members=[{}] ({} self-found parties left)",
+                 rec.runId, rec.dungeon, rec.level, rec.result, rec.bossesKilled, rec.bossesTotal, rec.wipeRetries,
+                 rec.durationS,
                  rec.gearIlvlBefore, rec.gearIlvlAfter, members, _parties.size());
     }
 

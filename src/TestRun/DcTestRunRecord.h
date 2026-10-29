@@ -170,7 +170,7 @@ namespace DcTestRunRecord
         // 15: added gear before/after: per member itemLevelAfter/itemsChanged,
         //     and the party averages gearIlvlBefore/gearIlvlAfter (item level
         //     worn, not a ceiling: gearIlvl stays the regear ceiling, 0 on a
-        //     roster run that is never regeared).
+        //     roster run that is never regeared), and wipeRetries.
         std::uint32_t schema = 15;
         std::string runId;
         std::string planId;       // owning `.dc test plan`, "" for ad-hoc runs
@@ -201,6 +201,9 @@ namespace DcTestRunRecord
         // every run, roster runs included.
         float gearIlvlBefore = 0.f;
         float gearIlvlAfter = 0.f;
+        // Full wipes the run came back from (schema 15): a self-found party may
+        // be revived at the entrance and sent on again (SelfFound.WipeRetries).
+        std::uint32_t wipeRetries = 0;
         // Hand-picked party of real player characters (`party=`) rather than a
         // seeded draw from the addclass pool. compSeed is 0 on these runs: the
         // roster IS the comp, so there is nothing to replay from a seed.

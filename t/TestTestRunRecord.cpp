@@ -262,6 +262,7 @@ TEST(DcTestRunRecordTest, GearWornBeforeAfterSerializes)
     Record r = SampleRecord();
     r.gearIlvlBefore = 12.5f;
     r.gearIlvlAfter = 15.25f;
+    r.wipeRetries = 1;
     CompEntry c;
     c.name = "Tank";
     c.itemLevel = 12.f;
@@ -274,6 +275,7 @@ TEST(DcTestRunRecordTest, GearWornBeforeAfterSerializes)
     EXPECT_NE(line.find("\"gearIlvlAfter\":15.25"), std::string::npos);
     EXPECT_NE(line.find("\"itemLevelAfter\":16"), std::string::npos);
     EXPECT_NE(line.find("\"itemsChanged\":3"), std::string::npos);
+    EXPECT_NE(line.find("\"wipeRetries\":1"), std::string::npos);
 }
 
 // ---- roster runs (hand-picked real characters) ------------------------------

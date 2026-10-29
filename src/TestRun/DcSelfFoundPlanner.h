@@ -36,6 +36,16 @@
 // LFG chat, not held by a bench and not in another run. A player's character,
 // alt or group member is never one of them.
 //
+// Weak parties: in dungeons starting below SelfFound.StrictMinBelowLevel no
+// member is under the range's minimum, and the party is led by its
+// highest-level tank. Every run gets per-run DC overrides (SelfFound.Cautious):
+// small pulls (one elite at a time when the party's item level is under
+// GearedIlvlPct % of its level), no pack pulled en route, a full rest whenever
+// health or mana drops under the SelfFound.Rest* triggers; a full wipe is
+// retried SelfFound.WipeRetries times (revived at the entrance). After a failed
+// run its members wait SelfFound.WipeCooldownMin, and the same five are not
+// sent together again before that long.
+//
 // Load: at most SelfFound.MaxGroups parties at once, the bots are already logged
 // in, and TestRun.MaxConcurrent still caps every run. The members of a party are
 // held (RandomBotLevelMgr::SetHeld) while it runs. The run record carries the

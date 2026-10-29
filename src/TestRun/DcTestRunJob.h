@@ -12,6 +12,7 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "ObjectGuid.h"
@@ -166,6 +167,16 @@ public:
     // reaches Monitoring, and score it with the ten oracles at teardown. Call
     // before Monitoring; a no-op afterwards.
     void EnableTrace() { _traceRequested = true; }
+
+    // Self-found parties (DcSelfFoundPlanner): DC overrides for this run only,
+    // set on the leader with the WaitAtBoss one when the run starts (cautious
+    // pulls, full rests), and how many full wipes the run may come back from
+    // (members revived at the entrance, `dc on` again). Call before Monitoring.
+    void SetRunOptions(std::vector<std::pair<std::string, double>> overrides, uint32 wipeRetries)
+    {
+        _runOverrides = std::move(overrides);
+        _wipeRetriesLeft = wipeRetries;
+    }
     bool IsMonitoring() const { return _stage.load() == Stage::Monitoring; }
     bool IsLab() const { return _lab != nullptr; }
     bool InLabStage() const { return _stage.load() == Stage::Lab; }
@@ -309,6 +320,9 @@ private:
     static bool AnyMemberDead(Player* tank);
 
     void FailSetup(std::string const& why);
+    // A full wipe (or a disable on corpses) with SetRunOptions retries left:
+    // revive the party at the entrance and resume. True = the verdict waits.
+    bool TryWipeRetry(DcTestRun::Observation const& obs);
     void Finish(DcTestRun::Verdict verdict, std::string const& failReason);
     void Teardown();
     // Item level and changed slots of every member still in the world (schema 15).
@@ -458,10 +472,10 @@ private:
     bool _teleportIssued = false;      // wave 1 (the leader) has been sent
     bool _followersTeleported = false; // wave 2 (everybody else) has been sent
     uint32 _lastTeleportMs = 0;        // stage time of the last transfer issued
-    std::unordered_map<uint32, uint32> _combatMs;
+    std::unordered_map<uint32, uint32> _combatMs;  // member guid low -> ms in combat while monitored
     // Equipped item entries per member (raw guid) when the run took it; the
     // teardown counts the slots that changed (record schema 15).
-    std::unordered_map<std::uint64_t, std::vector<std::uint32_t>> _equipBefore;  // member guid low -> ms in combat while monitored
+    std::unordered_map<std::uint64_t, std::vector<std::uint32_t>> _equipBefore;
     std::unordered_map<uint32, int32> _lastManaPct; // member guid low -> last living mana %
     uint32 _tankAwayMs = 0;            // time the tank has spent off the run's map
     static constexpr uint32 TANK_AWAY_LIMIT_MS = 15 * 1000;
@@ -518,6 +532,10 @@ private:
     uint32 _pausedForMs = 0;
     uint32 _stalledForMs = 0;
     uint32 _wipedForMs = 0;
+    // SetRunOptions (self-found parties).
+    std::vector<std::pair<std::string, double>> _runOverrides;
+    uint32 _wipeRetriesLeft = 0;
+    bool _wipeRetryDcOn = false;  // `dc on` again once the revived leader is in
     // Who was still standing the tick before the wipe latched — the last dead
     // member's name is the one worth naming in the fail reason.
     std::string _lastAliveMember;

@@ -149,6 +149,12 @@ public:
     // started (by its runId). False when no live run has that id.
     bool EnableTrace(std::string const& runId);
 
+    // The self-found planner (DcSelfFoundPlanner), on a run it just started:
+    // DC overrides for that run only and its full-wipe retries (see
+    // DcTestRunJob::SetRunOptions). False when no live run has that id.
+    bool SetRunOptions(std::string const& runId, std::vector<std::pair<std::string, double>> overrides,
+                       uint32 wipeRetries);
+
     std::string StatusText() const;
     bool IsActive() const { return !_runs.empty(); }
 

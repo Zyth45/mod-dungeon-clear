@@ -119,6 +119,7 @@ namespace DcTestRunRecord
           << ",\"gearQuality\":" << rec.gearQuality
           << ",\"gearIlvlBefore\":" << rec.gearIlvlBefore
           << ",\"gearIlvlAfter\":" << rec.gearIlvlAfter
+          << ",\"wipeRetries\":" << rec.wipeRetries
           << ",\"roster\":" << (rec.roster ? "true" : "false")
           << ",\"comp\":[";
         for (std::size_t i = 0; i < rec.comp.size(); ++i)

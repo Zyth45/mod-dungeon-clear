@@ -473,6 +473,19 @@ std::string DcTestRunManager::ListActiveRuns() const
     return out;
 }
 
+bool DcTestRunManager::SetRunOptions(std::string const& runId,
+                                     std::vector<std::pair<std::string, double>> overrides,
+                                     uint32 wipeRetries)
+{
+    for (std::unique_ptr<DcTestRunJob> const& job : _runs)
+        if (job->RunId() == runId)
+        {
+            job->SetRunOptions(std::move(overrides), wipeRetries);
+            return true;
+        }
+    return false;
+}
+
 bool DcTestRunManager::EnableTrace(std::string const& runId)
 {
     for (std::unique_ptr<DcTestRunJob> const& job : _runs)

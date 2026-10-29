@@ -848,6 +848,24 @@ inline constexpr DcSettingDef kDcSettings[] =
     { "SelfFound.IntervalS",             DcType::UInt,     90, 30,  86400, false },
     { "SelfFound.LevelWindow",           DcType::UInt,      2,  0,     10, false },
     { "SelfFound.RoleFallbackMaxLevel",  DcType::UInt,     30,  0,     60, false },
+    // No member under the range's minimum in dungeons that start below this
+    // level (LevelWindow only opens the higher ones).
+    { "SelfFound.StrictMinBelowLevel",   DcType::UInt,     20,  0,     60, false },
+    // Cautious self-found runs (per-run overrides on the leader): pull ceiling
+    // PullMaxMobs (party ilvl under GearedIlvlPct % of its level, and then
+    // always Advanced) or PullMaxMobsGeared, en-route avoidance, Smart Rest at
+    // these triggers (rest to full whenever one is crossed).
+    { "SelfFound.Cautious",              DcType::Bool,      1,  0,      1, false },
+    { "SelfFound.PullMaxMobs",           DcType::UInt,      1,  1,     20, false },
+    { "SelfFound.PullMaxMobsGeared",     DcType::UInt,      2,  1,     20, false },
+    { "SelfFound.GearedIlvlPct",         DcType::UInt,     80,  0,    200, false },
+    { "SelfFound.RestHealthPct",         DcType::UInt,     90,  0,    100, false },
+    { "SelfFound.RestManaPct",           DcType::UInt,     70,  0,    100, false },
+    { "SelfFound.RestHealerManaPct",     DcType::UInt,     90,  0,    100, false },
+    // Full wipes a self-found run comes back from (revived at the entrance),
+    // and the rest after a failed run (also: the same five not resent before).
+    { "SelfFound.WipeRetries",           DcType::UInt,      1,  0,      3, false },
+    { "SelfFound.WipeCooldownMin",       DcType::UInt,     60,  0,   1440, false },
     { "TestRun.Plan.ResetGuardMin", DcType::UInt,  45,  0,    720, false },
 
     // RDF instant queue fill (DungeonClear.DungeonQueueFill.*). Server policy,

@@ -1875,6 +1875,62 @@ DungeonClear.SelfFound.LevelWindow = 2
 
 DungeonClear.SelfFound.RoleFallbackMaxLevel = 30
 
+#
+#    DungeonClear.SelfFound.StrictMinBelowLevel
+#        In dungeons whose range starts below this level (Ragefire Chasm,
+#        Wailing Caverns, the Deadmines), no member is under the range's
+#        minimum: LevelWindow only opens the higher dungeons. Parties are led
+#        by their highest-level tank and filled near its level.
+#
+#        Default: 20
+#
+
+DungeonClear.SelfFound.StrictMinBelowLevel = 20
+
+#
+#    DungeonClear.SelfFound.Cautious
+#        Self-found parties play carefully, for their run only: at most
+#        PullMaxMobs at a time (in elite thirds: 1 = one elite or three normal
+#        mobs, one pack after the other) when the party's average item level is
+#        under GearedIlvlPct percent of its level, PullMaxMobsGeared otherwise;
+#        no pack pulled on the way; and a full rest (health and mana) whenever a
+#        member drops under RestHealthPct health, a dps or tank under
+#        RestManaPct mana, or the healer under RestHealerManaPct mana.
+#        0 = the party plays with the realm's Dungeon Clear settings.
+#
+#        Default: 1, 1, 2, 80, 90, 70, 90
+#
+
+DungeonClear.SelfFound.Cautious = 1
+DungeonClear.SelfFound.PullMaxMobs = 1
+DungeonClear.SelfFound.PullMaxMobsGeared = 2
+DungeonClear.SelfFound.GearedIlvlPct = 80
+DungeonClear.SelfFound.RestHealthPct = 90
+DungeonClear.SelfFound.RestManaPct = 70
+DungeonClear.SelfFound.RestHealerManaPct = 90
+
+#
+#    DungeonClear.SelfFound.WipeRetries
+#        Full wipes a self-found run comes back from: the party is revived at
+#        the entrance with full health and mana and goes on (the cleared packs
+#        stay dead). 0 = a wipe ends the run.
+#
+#        Default: 1
+#
+
+DungeonClear.SelfFound.WipeRetries = 1
+
+#
+#    DungeonClear.SelfFound.WipeCooldownMin
+#        Minutes the members of a failed self-found run wait before another
+#        dungeon; the same five bots are never sent together again before that
+#        long, whatever the result.
+#
+#        Default: 60
+#
+
+DungeonClear.SelfFound.WipeCooldownMin = 60
+
 ###############################################################################
 #
 #   RDF INSTANT QUEUE FILL (DungeonClear.DungeonQueueFill.*)
