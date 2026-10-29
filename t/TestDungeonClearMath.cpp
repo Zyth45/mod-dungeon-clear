@@ -1459,6 +1459,34 @@ TEST(DungeonClearFizzleTest, ZeroMaxHandsOffOnFirstFizzle)
     EXPECT_TRUE(ShouldHandoffFizzledPull(true, false, 0u, count));
 }
 
+// --- ShouldForgivePullbackInterruption (pull-back boss never tagged) ---------
+using DungeonClearMath::ShouldForgivePullbackInterruption;
+
+TEST(DungeonClearFizzleTest, PullbackNeverEngagedIsForgiven)
+{
+    // Plugger shape: the camp fight was the bar's patrons, he never entered it.
+    EXPECT_TRUE(ShouldForgivePullbackInterruption(/*pullback*/ true, /*aliveIdle*/ true,
+                                                  /*engaged*/ false, 0u, 4u));
+    EXPECT_TRUE(ShouldForgivePullbackInterruption(true, true, false, 3u, 4u));
+}
+
+TEST(DungeonClearFizzleTest, PullbackInterruptionsAreBounded)
+{
+    // Past the budget it counts as an ordinary fizzle again — never a loop.
+    EXPECT_FALSE(ShouldForgivePullbackInterruption(true, true, false, 4u, 4u));
+    EXPECT_FALSE(ShouldForgivePullbackInterruption(true, true, false, 0u, 0u));
+}
+
+TEST(DungeonClearFizzleTest, OnlyAnUntaggedPullbackFizzleIsForgiven)
+{
+    // He was in the fight (a real drag failure): the fizzle latch decides.
+    EXPECT_FALSE(ShouldForgivePullbackInterruption(true, true, /*engaged*/ true, 0u, 4u));
+    // Not a fizzle at all (dead / still fighting).
+    EXPECT_FALSE(ShouldForgivePullbackInterruption(true, /*aliveIdle*/ false, false, 0u, 4u));
+    // An ordinary trash pull keeps the plain fizzle semantics.
+    EXPECT_FALSE(ShouldForgivePullbackInterruption(/*pullback*/ false, true, false, 0u, 4u));
+}
+
 // --- WalkTrailBack (Kernel A: the one shared breadcrumb walk-back primitive) --
 
 using DungeonClearMath::TrailStep;

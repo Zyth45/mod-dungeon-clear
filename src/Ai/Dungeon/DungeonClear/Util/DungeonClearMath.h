@@ -1059,6 +1059,29 @@ namespace DungeonClearMath
     bool ShouldHandoffFizzledPull(bool pulledAliveIdle, bool sameTarget,
                                   std::uint32_t maxFizzles, std::uint32_t& fizzleCount);
 
+    // Pull-back "interrupted, not fizzled" verdict (pure). Read at the same Engage
+    // cleanup, BEFORE ShouldHandoffFizzledPull, and when it answers true the caller
+    // skips the fizzle bookkeeping for this camp fight altogether.
+    //
+    // A fizzle means "the drag was tried and the target would not come". For a
+    // BossPullbackRegistry boss that only holds if the boss was ever in the fight:
+    // the camp fight can just as well be somebody ELSE's — trash that walked into
+    // the tank while it held on the anchor (Forming) or walked out to tag (Advancing)
+    // — and then the boss is alive, idle and at full health afterwards for the plain
+    // reason that nobody ever tagged him. Counted as fizzles, two such fights hand
+    // the boss to the walk-in engage, which a pull-back boss refuses, and the run
+    // stalls (Plugger Spazzring, tr-20261028-144123-65 / -162730-160: the bar's
+    // patrons, then a Blazing Fireguard, each "confirmed aggro" for a pull that had
+    // not tagged him yet).
+    //
+    // `bossEngaged` is the caller's evidence that he WAS in it (seen in combat during
+    // the pull, or below full health). Bounded by `maxInterrupts` consecutive
+    // forgiven fights, so a pull that keeps being interrupted still falls back to
+    // the ordinary fizzle count and can never loop forever.
+    bool ShouldForgivePullbackInterruption(bool bossPullback, bool pulledAliveIdle,
+                                           bool bossEngaged, std::uint32_t interruptsSoFar,
+                                           std::uint32_t maxInterrupts);
+
     // Squared 2D distance from point P to segment (A,B).
     float DistSqToSegment2D(float px, float py,
                             float ax, float ay,

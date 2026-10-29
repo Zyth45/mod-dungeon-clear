@@ -400,6 +400,24 @@ struct DcPullContext
                                                  // at DC_PULL_FIZZLE_MAX the pack is
                                                  // handed to the walk-in engage via
                                                  // abortTarget instead of re-pulled
+    bool        pullTargetEngaged = false;       // PULL-BACK only: the boss was seen
+                                                 // in combat at some point of THIS
+                                                 // pull (stamped false at commit).
+                                                 // Without it the Engage cleanup
+                                                 // cannot tell "the drag failed"
+                                                 // from "the camp fight was some
+                                                 // other pack and he was never
+                                                 // tagged" — see DungeonClearMath::
+                                                 // ShouldForgivePullbackInterruption.
+    ObjectGuid  interruptTarget;                 // pull-back boss whose pulls keep
+    uint32      interruptCount = 0;              // being interrupted, and how many
+                                                 // consecutive camp fights were
+                                                 // forgiven (bounded by
+                                                 // DC_PULLBACK_INTERRUPT_MAX)
+    ObjectGuid  pullbackRearmTarget;             // pull-back boss the at-boss engage
+    uint32      pullbackRearms = 0;              // re-armed after the abort latch,
+                                                 // and how often (bounded by
+                                                 // DC_PULLBACK_REARM_MAX; per run)
 
     // --- dynamic verdict (pull setting == 2) ------------------------------
     DcPullDecisionCode decision = DcPullDecisionCode::None;  // standing pull verdict

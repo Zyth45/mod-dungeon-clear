@@ -511,6 +511,20 @@ bool DungeonClearMath::ShouldHandoffFizzledPull(bool pulledAliveIdle, bool sameT
     return fizzleCount >= maxFizzles;
 }
 
+bool DungeonClearMath::ShouldForgivePullbackInterruption(bool bossPullback,
+                                                         bool pulledAliveIdle,
+                                                         bool bossEngaged,
+                                                         std::uint32_t interruptsSoFar,
+                                                         std::uint32_t maxInterrupts)
+{
+    // Only a pull-back boss, only a "fizzle" (alive and idle), and only when he was
+    // never part of the fight: anything else is the ordinary fizzle latch's call.
+    if (!bossPullback || !pulledAliveIdle || bossEngaged)
+        return false;
+    // Bounded: past the budget the interruption counts like any other fizzle.
+    return interruptsSoFar < maxInterrupts;
+}
+
 float DungeonClearMath::DistSqToSegment2D(float px, float py,
                                          float ax, float ay,
                                          float bx, float by)

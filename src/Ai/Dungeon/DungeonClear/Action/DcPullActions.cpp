@@ -421,6 +421,12 @@ namespace
     // camp, and a re-pull just repeats the fizzle — the tank bouncing forward
     // and back while the party stands at camp never entering combat.
     constexpr uint32 DC_PULL_FIZZLE_MAX = 2;
+    // Consecutive camp fights a PULL-BACK pull may lose to OTHER mobs (the boss
+    // never entered them, so there was no drag to fizzle) before they count as
+    // ordinary fizzles again. Each one is a real fight the party wins, so the
+    // budget only has to outlast the trash around one boss — Plugger's bar took
+    // two (patrons, then a stray Fireguard). See ShouldForgivePullbackInterruption.
+    constexpr uint32 DC_PULLBACK_INTERRUPT_MAX = 4;
     // Longest the tank waits in Forming for the party to park+go passive at camp
     // before tagging anyway. Sized to cover the party walking back to a far camp
     // (PullSetback can be tens of yards); past it the tank tags regardless and the
@@ -727,6 +733,7 @@ bool DungeonClearPullAction::Execute(Event /*event*/)
                 pull.bossPullback = true;
                 pull.losPull = false;   // not an LOS-break pull; distinct suppression
                 pull.pullTarget = trash->GetGUID();
+                pull.pullTargetEngaged = false;   // per-pull; see EndCampFight
                 DcMovement::StopBot(bot, DcMovement::Stop::Hold);
                 DcFaceIfNeeded(bot, trash);
                 DcSetPullPhase(context, DcPullPhase::Forming);
@@ -1410,6 +1417,7 @@ bool DungeonClearPullAction::Execute(Event /*event*/)
                     if (bossCreature && DcForceBossAggroOnTank(bot, bossCreature))
                     {
                         pull.tagTarget = trash->GetGUID();
+                        pull.pullTargetEngaged = true;
                         // Drop the walk-out to the stand-off before turning round.
                         // It was a MOVEMENT_COMBAT MoveTo, so its LastMovement wait
                         // would refuse the equal-priority run-home below for the
@@ -1961,6 +1969,7 @@ bool DungeonClearPullAction::Execute(Event /*event*/)
                     ? nullptr : ObjectAccessor::GetUnit(*bot, pull.pullTarget);
                 if (pulled && pulled->IsAlive() && pulled->IsInCombat())
                 {
+                    pull.pullTargetEngaged = true;
                     DcMoveTo(bot->GetMapId(), camp.GetPositionX(), camp.GetPositionY(),
                              camp.GetPositionZ(), /*idle*/ false, /*react*/ false,
                              /*normal_only*/ false, /*exact_waypoint*/ false,
@@ -2015,6 +2024,52 @@ namespace
             Unit* pulled = pull.pullTarget.IsEmpty()
                 ? nullptr : ObjectAccessor::GetUnit(*bot, pull.pullTarget);
             bool const aliveIdle = pulled && pulled->IsAlive() && !pulled->IsInCombat();
+
+            // PULL-BACK, INTERRUPTED — NOT FIZZLED. A pull-back boss is pulled from
+            // the anchor, and the anchor is not empty ground: while the tank holds
+            // there (Forming) or walks out to tag (Advancing), anything that walks
+            // into it flips the maneuver into the drag-back on "aggro confirmed", and
+            // the camp fight that follows is THAT pack's. The boss was never tagged,
+            // so of course he is alive, idle and at full health afterwards — and two
+            // of those were enough to latch the abort and stall the run at Plugger
+            // (the patrons, then a stray Blazing Fireguard; tr-20261028-144123-65 and
+            // tr-20261028-162730-160). Health below 100% is taken as proof he was in
+            // it too, in case the in-combat stamp missed a tick.
+            if (pulled && pull.bossPullback)
+            {
+                bool const engaged =
+                    pull.pullTargetEngaged || pulled->GetHealthPct() < 100.0f;
+                if (pull.interruptTarget != pull.pullTarget)
+                {
+                    pull.interruptTarget = pull.pullTarget;
+                    pull.interruptCount = 0;
+                }
+                if (DungeonClearMath::ShouldForgivePullbackInterruption(
+                        pull.bossPullback, aliveIdle, engaged, pull.interruptCount,
+                        DC_PULLBACK_INTERRUPT_MAX))
+                {
+                    ++pull.interruptCount;
+                    DC_PULL_INFO("[DC:{}] pull-back: camp fight over without {} ever "
+                                 "in it ({:.1f}yd, {:.0f}% hp) -> interrupted, not "
+                                 "fizzled ({}/{}), re-pulling him",
+                                 bot->GetName(), pull.pullTarget.ToString(),
+                                 bot->GetExactDist(pulled), pulled->GetHealthPct(),
+                                 pull.interruptCount, DC_PULLBACK_INTERRUPT_MAX);
+                    // Fizzle latch left exactly as it was: this fight says nothing
+                    // about whether he can be dragged.
+                    pull.pullTarget = ObjectGuid::Empty;
+                    pull.pullTargetEngaged = false;
+                    pull.bossPullback = false;
+                    AbandonScriptedStage(pull);
+                    pull.roomCampFight = false;
+                    DcSetPullPhase(context, DcPullPhase::Idle);
+                    return;
+                }
+                if (engaged || !aliveIdle)
+                    pull.interruptCount = 0;
+            }
+            pull.pullTargetEngaged = false;
+
             // sameTarget compares against the OLD latch before we re-stamp it.
             bool const sameTarget = aliveIdle && pull.fizzleTarget == pull.pullTarget;
             bool const handoff = DungeonClearMath::ShouldHandoffFizzledPull(
@@ -2191,6 +2246,18 @@ bool DungeonClearPullManeuverAction::Execute(Event /*event*/)
     uint32 const now = getMSTime();
     DcPullPhase const phase = pull.phase;
     DcLatchRoomCampFight(bot, context, pull);
+
+    // PULL-BACK — WITNESS THE BOSS IN THE FIGHT. The Engage cleanup has to know
+    // whether this camp fight was HIS (a drag that may have fizzled) or somebody
+    // else's that merely happened while his pull was standing (the bar's patrons
+    // walking into the tank on the anchor). Only the in-combat side can see it while
+    // it is true, so stamp it here, once, every tick the maneuver runs.
+    if (pull.bossPullback && !pull.pullTargetEngaged && !pull.pullTarget.IsEmpty())
+    {
+        Unit* const pulled = ObjectAccessor::GetUnit(*bot, pull.pullTarget);
+        if (pulled && pulled->IsAlive() && pulled->IsInCombat())
+            pull.pullTargetEngaged = true;
+    }
 
     // Keep the tank daze-proof for the whole drag. Immunity (set with pull mode)
     // should stop Daze landing at all; strip it here too as a backstop so a

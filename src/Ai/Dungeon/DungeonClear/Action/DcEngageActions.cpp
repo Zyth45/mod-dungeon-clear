@@ -101,6 +101,12 @@ namespace
     // adjacent pack to reach a farther on-corridor target.
     constexpr float DC_PROXIMITY_ENGAGE_RANGE = 20.0f;
 
+    // Times the at-boss engage hands a PULL-BACK boss back to the pull pipeline
+    // after the pipeline latched him as its abort target, before it gives up and
+    // stalls. Per boss, per run. Each re-arm is a whole fresh pull (Forming ->
+    // tag -> drag) with its own fizzle budget, so two is already six drag attempts.
+    constexpr uint32 DC_PULLBACK_REARM_MAX = 2;
+
     // Stand-off before a blocking door, as distance TRAVELLED ALONG the path to
     // where the route first reaches the doorway (see
     // DcEngageGeometry::DistAlongPathToClosedDoor) — NOT straight-line to the
@@ -1115,8 +1121,41 @@ bool DungeonClearEngageBossAction::Execute(Event event)
         // point at `dc skip`, instead of either swimming out or wedging quietly.
         // The latch clears at the pull's Engage cleanup, and ClearStall on any
         // later successful engage, so a recovered pull resumes normally.
-        if (AI_VALUE(DcPullContext&, DcKey::PullContext).abortTarget == boss->GetGUID())
+        DcPullContext& pull = context->GetValue<DcPullContext&>(DcKey::PullContext)->Get();
+        if (pull.abortTarget == boss->GetGUID())
         {
+            // BOUNDED RE-ARM before the stall. The latch is a verdict on the pulls
+            // made so far, and those can lose to things that say nothing about the
+            // boss — a tag leg timed out behind a patrol, a fight that interrupted
+            // the drag (see ShouldForgivePullbackInterruption, which now catches the
+            // common case upstream). The party is out of combat and on the anchor
+            // here, which is exactly the state a fresh pull starts from, so clear the
+            // latch and the fizzle run and let the pull pipeline (relevance 35) take
+            // him again on the next tick. DC_PULLBACK_REARM_MAX per boss per run
+            // keeps it finite: a boss that really cannot be dragged still ends in
+            // the stall below, never in a silent loop.
+            if (pull.pullbackRearmTarget != boss->GetGUID())
+            {
+                pull.pullbackRearmTarget = boss->GetGUID();
+                pull.pullbackRearms = 0;
+            }
+            if (pull.pullbackRearms < DC_PULLBACK_REARM_MAX)
+            {
+                ++pull.pullbackRearms;
+                pull.abortTarget = ObjectGuid::Empty;
+                pull.fizzleTarget = ObjectGuid::Empty;
+                pull.fizzleCount = 0;
+                pull.interruptCount = 0;
+                ClearStall(context);
+                LOG_INFO("playerbots.dungeonclear",
+                         "[DC:{}] pull-back: {} was handed off by the pull ({}) -> "
+                         "re-arming the drag from the anchor ({}/{}) instead of "
+                         "stalling", bot->GetName(), next->name,
+                         boss->GetGUID().ToString(), pull.pullbackRearms,
+                         DC_PULLBACK_REARM_MAX);
+                return true;
+            }
+
             StallDungeonClear(botAI,
                 "Can't pull " + next->name + " back to safe ground (the drag kept "
                 "failing). Use 'dc skip' to move to the next boss.");
