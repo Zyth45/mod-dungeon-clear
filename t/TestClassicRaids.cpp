@@ -1,0 +1,81 @@
+/*
+ * Copyright (C) 2016+ AzerothCore <www.azerothcore.org>, released under GNU AGPL v3 license, you may redistribute it
+ * and/or modify it under version 3 of the License, or (at your option), any later version.
+ */
+
+// Authored-data lints for the classic raid patches that summon a boss with no
+// creature spawn row: Zul'Gurub's Arlokk (the Gong of Bethekk) and Temple of
+// Ahn'Qiraj's Ouro (his mound), plus the BWL panel placement of the Razorgore
+// orb run. No world state: these pin the shapes the runtime relies on.
+
+#include "gtest/gtest.h"
+
+#include <vector>
+
+#include "Ai/Dungeon/DungeonClear/Data/DungeonEventRegistry.h"
+#include "Ai/Dungeon/DungeonClear/Data/Events/DungeonEventTables.h"
+#include "Ai/Dungeon/DungeonClear/Overrides/BossRosterRegistry.h"
+#include "Ai/Dungeon/DungeonClear/Util/DcDifficulty.h"
+
+namespace
+{
+    DungeonBossInfo Static(uint32 entry, uint32 index, uint32 mapId)
+    {
+        DungeonBossInfo b;
+        b.entry = entry;
+        b.encounterIndex = index;
+        b.mapId = mapId;
+        return b;
+    }
+
+    DungeonBossInfo const* FindEntry(std::vector<DungeonBossInfo> const& v, uint32 entry)
+    {
+        for (DungeonBossInfo const& b : v)
+            if (b.entry == entry)
+                return &b;
+        return nullptr;
+    }
+}
+
+TEST(DcClassicRaidsTest, ZulGurubAddsArlokkOnTheGong)
+{
+    // The seven ZG bosses that do have spawn rows, at their DBC order.
+    std::vector<DungeonBossInfo> base = {
+        Static(14507, 0, 309), Static(14517, 1, 309), Static(14510, 2, 309),
+        Static(11382, 3, 309), Static(14509, 5, 309), Static(11380, 8, 309),
+        Static(14834, 9, 309),
+    };
+    auto const out = BossRosterRegistry::Apply(309, DcDiffKey::Raid(0), base);
+    ASSERT_EQ(out.size(), 8u);
+
+    DungeonBossInfo const* arlokk = FindEntry(out, 14515);
+    ASSERT_NE(arlokk, nullptr);
+    EXPECT_EQ(arlokk->kind, DungeonAnchorKind::Boss);
+    EXPECT_EQ(arlokk->doneBossStateIndex, 3);  // DATA_ARLOKK
+    EXPECT_GE(arlokk->encounterIndex, 32u);    // never aliases a DBC bit
+    EXPECT_EQ(arlokk->orderOverride, 7);
+    EXPECT_NEAR(arlokk->x, -11569.2f, 0.1f);   // on the gong
+}
+
+TEST(DcClassicRaidsTest, ZulGurubGongEventGatesArlokk)
+{
+    DungeonEvent const* ev = DungeonEventRegistry::Find(309, 1);
+    ASSERT_NE(ev, nullptr);
+    EXPECT_EQ(ev->activation, EventActivation::Conditional);
+    // Repeatable keeps it pending (no not-spawned stall) until she dies.
+    EXPECT_TRUE(ev->repeatable);
+    EXPECT_EQ(ev->panelGatesBossEntry, 14515u);
+    ASSERT_EQ(ev->steps.size(), 1u);
+    EXPECT_EQ(ev->steps[0].kind, EventStepKind::UseGameObject);
+    EXPECT_EQ(ev->steps[0].goEntry, 180526u);
+}
+
+TEST(DcClassicRaidsTest, RazorgoreOrbRunListsAfterGrethok)
+{
+    // Display placement only: it must NOT gate Razorgore, which would also stand
+    // the pull pipeline down around him.
+    DungeonEvent const* ev = DungeonEventRegistry::Find(469, DcBlackwingLair::EVENT_RAZORGORE_ORB);
+    ASSERT_NE(ev, nullptr);
+    EXPECT_EQ(ev->panelSortAfterBossEntry, DcBlackwingLair::NPC_GRETHOK_THE_CONTROLLER);
+    EXPECT_EQ(ev->panelGatesBossEntry, 0u);
+}

@@ -866,6 +866,7 @@ namespace DcVioletHold
 
 void RegisterVioletHoldEvents(std::vector<DungeonEvent>& out);
 void RegisterMoltenCoreEvents(std::vector<DungeonEvent>& out);
+void RegisterZulGurubEvents(std::vector<DungeonEvent>& out);
 
 // --- Halls of Stone (map 599) ---------------------------------------------
 //
@@ -5873,6 +5874,8 @@ void RegisterVioletHoldRoster(std::vector<BossRosterPatch>& t);
 void RegisterHallsOfStoneRoster(std::vector<BossRosterPatch>& t);
 void RegisterGundrakRoster(std::vector<BossRosterPatch>& t);
 void RegisterMoltenCoreRoster(std::vector<BossRosterPatch>& t);
+// Zul'Gurub (309): High Priestess Arlokk, summoned by the Gong of Bethekk.
+void RegisterZulGurubRoster(std::vector<BossRosterPatch>& t);
 // Utgarde Pinnacle (575) — the ONE row that makes this dungeon runnable at all
 // (Svala, whose credit entry 26668 is a runtime UpdateEntry target with no spawn
 // row, so BossSpawnIndex drops her silently) plus the three travel objectives the

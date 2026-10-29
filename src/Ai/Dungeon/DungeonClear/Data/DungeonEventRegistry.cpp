@@ -522,6 +522,7 @@ namespace
             RegisterDrakTharonKeepEvents(t);
             RegisterGundrakEvents(t);
             RegisterMoltenCoreEvents(t);
+            RegisterZulGurubEvents(t);
             RegisterVioletHoldEvents(t);
             RegisterBlackwingLairEvents(t);
             RegisterHallsOfStoneEvents(t);
