@@ -1917,11 +1917,15 @@ DungeonClear.SelfFound.RestHealerManaPct = 90
 #        Full wipes a self-found run comes back from: the party is revived at
 #        the entrance with full health and mana and goes on (the cleared packs
 #        stay dead). 0 = a wipe ends the run.
+#        A member that dies with no one left able to resurrect it does not end
+#        a self-found run either: once the fight is over it is revived beside a
+#        survivor. That is free, unless it comes within 5 minutes of the last
+#        one: then it uses one of these retries.
 #
-#        Default: 1
+#        Default: 2
 #
 
-DungeonClear.SelfFound.WipeRetries = 1
+DungeonClear.SelfFound.WipeRetries = 2
 
 #
 #    DungeonClear.SelfFound.WipeCooldownMin

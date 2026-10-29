@@ -2558,7 +2558,7 @@ void DcTestRunJob::TickMonitoring(uint32 dt)
         obs.sinceProgressMs = _sinceProgressMs;
     }
 
-    if (_wipeRetriesLeft && TryWipeRetry(obs))
+    if ((_wipeRetriesLeft || _reviveLoneDeaths) && TryWipeRetry(obs))
         return;
 
     DcTestRun::Verdict const verdict = DcTestRun::Classify(obs, _limits);
@@ -2662,33 +2662,90 @@ bool DcTestRunJob::TryWipeRetry(DcTestRun::Observation const& obs)
     if (!wiped && !disabledOnCorpses)
         return false;
 
+    // A living member in the dungeon: the run was disabled on a death nobody
+    // left could resurrect, not on a wipe.
+    Player* alive = nullptr;
+    for (Slot const& slot : _slots)
+        if (Player* bot = ObjectAccessor::FindPlayer(slot.guid);
+            bot && bot->IsInWorld() && bot->IsAlive() && bot->GetMapId() == _mapId)
+        {
+            alive = bot;
+            break;
+        }
+
+    // Self-found parties: such a death is revived beside a survivor. It costs a
+    // wipe retry only when it follows another within LONE_REVIVE_FREE_MS, so a
+    // party that keeps dying still runs out of retries.
+    bool loneRevive = false;
+    if (!wiped && alive && _reviveLoneDeaths)
+    {
+        bool const isFree = !_lastLoneReviveMs || obs.elapsedMs - _lastLoneReviveMs >= LONE_REVIVE_FREE_MS;
+        if (!isFree && !_wipeRetriesLeft)
+            return false;
+        loneRevive = true;
+    }
+    else if (!_wipeRetriesLeft)
+        return false;
+
     // A survivor still fighting: let the fight end first (the verdict waits).
     for (Slot const& slot : _slots)
         if (Player* bot = ObjectAccessor::FindPlayer(slot.guid); bot && bot->IsAlive() && bot->IsInCombat())
             return true;
 
-    --_wipeRetriesLeft;
-    ++_record.wipeRetries;
-    DcTestRun::Engagement const blame = DeathBlame();
-    ClosePull(true);
-    LOG_INFO("playerbots.dungeonclear",
-             "TESTRUN {} wipe retry {} ({}): party revived at the entrance, run resumes ({} left)",
-             _record.runId, _record.wipeRetries, blame.Empty() ? std::string("no blame") : blame.name,
-             _wipeRetriesLeft);
-
-    for (Slot const& slot : _slots)
+    if (loneRevive)
     {
-        Player* bot = ObjectAccessor::FindPlayer(slot.guid);
-        if (!bot || !bot->IsInWorld())
-            continue;
-        PrepareForTeleport(bot);
-        bot->SetFullHealth();
-        if (bot->GetMaxPower(POWER_MANA))
-            bot->SetPower(POWER_MANA, bot->GetMaxPower(POWER_MANA));
-        if (!bot->IsBeingTeleported())
+        bool const isFree = !_lastLoneReviveMs || obs.elapsedMs - _lastLoneReviveMs >= LONE_REVIVE_FREE_MS;
+        if (!isFree)
         {
+            --_wipeRetriesLeft;
+            ++_record.wipeRetries;
+        }
+        _lastLoneReviveMs = std::max<uint32>(obs.elapsedMs, 1);
+        for (Slot const& slot : _slots)
+        {
+            Player* bot = ObjectAccessor::FindPlayer(slot.guid);
+            if (!bot || !bot->IsInWorld() || bot->IsAlive() || bot->IsBeingTeleported())
+                continue;
+            PrepareForTeleport(bot);
+            bot->SetFullHealth();
+            if (bot->GetMaxPower(POWER_MANA))
+                bot->SetPower(POWER_MANA, bot->GetMaxPower(POWER_MANA));
             DcRunTravelGuard::AllowScope const allow;
-            bot->TeleportTo(_mapId, _x, _y, _z, _o);
+            if (bot->GetMapId() == alive->GetMapId())
+                bot->NearTeleportTo(alive->GetPositionX(), alive->GetPositionY(), alive->GetPositionZ(),
+                                    alive->GetOrientation());
+            else
+                bot->TeleportTo(alive->GetMapId(), alive->GetPositionX(), alive->GetPositionY(),
+                                alive->GetPositionZ(), alive->GetOrientation());
+            LOG_INFO("playerbots.dungeonclear", "TESTRUN {} revived {} beside {} ({})", _record.runId,
+                     bot->GetName(), alive->GetName(), isFree ? "free" : "wipe retry used");
+        }
+    }
+    else
+    {
+        --_wipeRetriesLeft;
+        ++_record.wipeRetries;
+        DcTestRun::Engagement const blame = DeathBlame();
+        ClosePull(true);
+        LOG_INFO("playerbots.dungeonclear",
+                 "TESTRUN {} wipe retry {} ({}): party revived at the entrance, run resumes ({} left)",
+                 _record.runId, _record.wipeRetries, blame.Empty() ? std::string("no blame") : blame.name,
+                 _wipeRetriesLeft);
+
+        for (Slot const& slot : _slots)
+        {
+            Player* bot = ObjectAccessor::FindPlayer(slot.guid);
+            if (!bot || !bot->IsInWorld())
+                continue;
+            PrepareForTeleport(bot);
+            bot->SetFullHealth();
+            if (bot->GetMaxPower(POWER_MANA))
+                bot->SetPower(POWER_MANA, bot->GetMaxPower(POWER_MANA));
+            if (!bot->IsBeingTeleported())
+            {
+                DcRunTravelGuard::AllowScope const allow;
+                bot->TeleportTo(_mapId, _x, _y, _z, _o);
+            }
         }
     }
 

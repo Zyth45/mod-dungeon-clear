@@ -864,7 +864,7 @@ inline constexpr DcSettingDef kDcSettings[] =
     { "SelfFound.RestHealerManaPct",     DcType::UInt,     90,  0,    100, false },
     // Full wipes a self-found run comes back from (revived at the entrance),
     // and the rest after a failed run (also: the same five not resent before).
-    { "SelfFound.WipeRetries",           DcType::UInt,      1,  0,      3, false },
+    { "SelfFound.WipeRetries",           DcType::UInt,      2,  0,      3, false },
     { "SelfFound.WipeCooldownMin",       DcType::UInt,     60,  0,   1440, false },
     // The planner's own lines (config, per-tick census, START/END) at WARN:
     // launcher installs log playerbots at WARN only. Quiet ticks then at most

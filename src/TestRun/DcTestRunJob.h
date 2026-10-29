@@ -176,6 +176,7 @@ public:
     {
         _runOverrides = std::move(overrides);
         _wipeRetriesLeft = wipeRetries;
+        _reviveLoneDeaths = true;
     }
     bool IsMonitoring() const { return _stage.load() == Stage::Monitoring; }
     bool IsLab() const { return _lab != nullptr; }
@@ -535,6 +536,12 @@ private:
     // SetRunOptions (self-found parties).
     std::vector<std::pair<std::string, double>> _runOverrides;
     uint32 _wipeRetriesLeft = 0;
+    // Self-found runs: a death no survivor can resurrect is revived beside a
+    // survivor instead of ending the run; free unless it follows another within
+    // LONE_REVIVE_FREE_MS (then it costs a wipe retry).
+    bool _reviveLoneDeaths = false;
+    uint32 _lastLoneReviveMs = 0;  // _monitorMs of the last one (0 = none)
+    static constexpr uint32 LONE_REVIVE_FREE_MS = 5 * 60 * 1000;
     bool _wipeRetryDcOn = false;  // `dc on` again once the revived leader is in
     // Who was still standing the tick before the wipe latched — the last dead
     // member's name is the one worth naming in the fail reason.
