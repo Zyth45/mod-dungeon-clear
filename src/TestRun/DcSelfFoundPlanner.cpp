@@ -5,11 +5,14 @@
 
 #include "TestRun/DcSelfFoundPlanner.h"
 
+#include <algorithm>
 #include <cstdlib>
+#include <cstring>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "AscensionAverageItemLevel.h"
 #include "CoaSpecialization.h"
 #include "Common.h"
 #include "LFGMgr.h"
@@ -24,6 +27,7 @@
 #include "Random.h"
 #include "RandomBotLevelMgr.h"
 #include "RandomPlayerbotMgr.h"
+#include "StringFormat.h"
 
 #include "Ai/Dungeon/DungeonClear/Settings/DcSettings.h"
 #include "TestRun/DcTestDriver.h"
@@ -32,10 +36,6 @@
 
 namespace
 {
-    // The planId the self-found runs carry in dc_testruns.jsonl and the live
-    // file; no plan of the scheduler has it, so OnRunFinished ignores them.
-    char const* const kPlanId = "selffound";
-
     // How soon to look again when the headless driver is still logging in.
     constexpr uint32 kDriverRetryMs = 15000;
 
@@ -48,11 +48,50 @@ namespace
     std::vector<Party> _parties;  // world thread only
     uint32 _accumMs = 0;
 
+    enum class Role
+    {
+        Tank,
+        Heal,
+        Dps
+    };
+
     struct Candidate
     {
         Player* bot;
         uint32 level;
         TeamId team;
+        Role role;
+        uint32 maxHealth;
+    };
+
+    // The level range a player does each classic dungeon at (the dungeon
+    // finder's). The registry only has the level a test run is played at, high
+    // in the range (Deadmines 24): self-found bots go at the levels players go.
+    // A classic row missing here uses its recommended level plus or minus
+    // SelfFound.LevelWindow.
+    struct Range
+    {
+        char const* token;
+        uint32 lo;
+        uint32 hi;
+    };
+
+    constexpr Range kRanges[] = {
+        {"rfc", 13, 18},         {"wc", 17, 24},       {"deadmines", 17, 26}, {"sfk", 22, 30},
+        {"stockade", 22, 30},    {"bfd", 24, 32},      {"sm-gy", 26, 36},     {"rfk", 29, 38},
+        {"gnomer", 29, 38},      {"sm-lib", 29, 39},   {"sm-arm", 32, 42},    {"sm-cath", 35, 45},
+        {"rfd", 37, 46},         {"uldaman", 41, 51},  {"zf", 44, 54},        {"mara-orange", 46, 55},
+        {"mara-purple", 46, 55}, {"mara-pw", 48, 57},  {"maraudon", 48, 57},  {"st", 50, 60},
+        {"brd-db", 52, 60},      {"brd-uc", 54, 60},   {"lbrs", 55, 60},      {"dm-east", 55, 60},
+        {"dm-west", 57, 60},     {"dm-north", 57, 60}, {"ubrs", 58, 60},      {"scholo", 58, 60},
+        {"strat", 58, 60},
+    };
+
+    struct Dungeon
+    {
+        DcTestDungeonRegistry::Row const* row;
+        uint32 lo;
+        uint32 hi;
     };
 
     template <typename T>
@@ -62,13 +101,35 @@ namespace
             std::swap(v[i - 1], v[urand(0, uint32(i - 1))]);
     }
 
-    bool Near(uint32 level, uint32 recommended, uint32 window)
+    // The classic 5-man dungeons with the levels a self-found member may have
+    // there: the dungeon's range, opened `window` levels lower.
+    std::vector<Dungeon> ClassicDungeons(uint32 window)
     {
-        return uint32(std::abs(int32(level) - int32(recommended))) <= window;
+        std::vector<Dungeon> out;
+        for (DcTestDungeonRegistry::Row const& row : DcTestDungeonRegistry::All())
+        {
+            if (DcTestDungeonRegistry::IsScenario(row) || DcTestDungeonRegistry::IsRaid(row) ||
+                DcTestDungeonRegistry::ExpansionOf(row) != 0 || !row.recommendedLevel)
+                continue;
+
+            uint32 lo = row.recommendedLevel > window ? row.recommendedLevel - window : 1;
+            uint32 hi = row.recommendedLevel + window;
+            for (Range const& range : kRanges)
+                if (!std::strcmp(range.token, row.token))
+                {
+                    lo = range.lo > window ? range.lo - window : 1;
+                    hi = range.hi;
+                    break;
+                }
+            out.push_back({&row, lo, hi});
+        }
+        return out;
     }
 
-    // A self-found random bot that may leave what it is doing for a dungeon:
-    // never one a player has a hand on (group, invite, master, LFG offer).
+    // A random bot of the self-found share that may leave what it is doing for
+    // a dungeon: never one a player has a hand on (group, invite, master, LFG
+    // offer). On a self-found realm (AiPlayerbot.CoaSelfFound) the share picks
+    // which of the bots, all self-found already, go.
     bool Free(Player* bot)
     {
         if (!bot || !bot->IsInWorld() || bot->IsBeingTeleported() || !bot->IsAlive() || bot->IsInCombat() ||
@@ -76,19 +137,28 @@ namespace
             bot->IsInFlight() || !bot->GetMap() || bot->GetMap()->Instanceable())
             return false;
 
+        if (!PlayerbotFactory::IsSelfFoundGuid(bot->GetGUID().GetCounter()) || !sRandomPlayerbotMgr.IsRandomBot(bot))
+            return false;
+        if (!PlayerbotFactory::IsSelfFoundBot(bot) && !PlayerbotFactory::SelfFoundAt(bot->GetLevel()))
+            return false;
+
         ObjectGuid const guid = bot->GetGUID();
         if (sLFGMgr->GetState(guid) != lfg::LFG_STATE_NONE || RandomBotLevelMgr::IsHeld(guid) ||
             DcTestRunManager::Instance().IsReserved(guid) || CoaLfgOfferedToOther(bot, nullptr))
-            return false;
-
-        if (!PlayerbotFactory::IsSelfFoundBot(bot) || !sRandomPlayerbotMgr.IsRandomBot(bot))
             return false;
 
         PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot);
         return botAI && !botAI->GetMaster();
     }
 
-    // A party whose run is over: the run manager gave its members back.
+    void Unhold(std::vector<ObjectGuid> const& members)
+    {
+        for (ObjectGuid const& guid : members)
+            RandomBotLevelMgr::SetHeld(guid, false);
+    }
+
+    // Safety net: a party the run manager dropped without reporting a finished
+    // run is given back here once none of its members is reserved any more.
     void Release()
     {
         for (auto it = _parties.begin(); it != _parties.end();)
@@ -102,118 +172,221 @@ namespace
                 continue;
             }
 
-            for (ObjectGuid const& guid : it->members)
-                RandomBotLevelMgr::SetHeld(guid, false);
-            LOG_INFO("playerbots.dungeonclear", "SELFFOUND END {} ({} self-found parties left)", it->runId,
+            Unhold(it->members);
+            LOG_INFO("playerbots.dungeonclear", "SELFFOUND RELEASED {} ({} self-found parties left)", it->runId,
                      _parties.size() - 1);
             it = _parties.erase(it);
         }
     }
 
-    // Takes the first candidate of `pool` near `recommended` and on `team`,
-    // removing it from the pool.
-    Player* Take(std::vector<Candidate>& pool, TeamId team, uint32 recommended, uint32 window)
+    uint32 Distance(Candidate const* a, Candidate const* b)
     {
-        for (auto it = pool.begin(); it != pool.end(); ++it)
-            if (it->team == team && Near(it->level, recommended, window))
-            {
-                Player* bot = it->bot;
-                pool.erase(it);
-                return bot;
-            }
-        return nullptr;
+        return uint32(std::abs(int32(a->level) - int32(b->level)));
     }
 
-    void TryLaunch(Player* driver, uint32 window)
+    // Moves the member of `from` with `role` (any role when null) nearest in
+    // level to `anchor` into `party`.
+    bool TakeNearest(std::vector<Candidate const*>& from, Candidate const* anchor, Role const* role,
+                     std::vector<Candidate const*>& party)
     {
-        std::vector<Candidate> tanks;
-        std::vector<Candidate> heals;
-        std::vector<Candidate> dps;
+        auto best = from.end();
+        for (auto it = from.begin(); it != from.end(); ++it)
+            if ((!role || (*it)->role == *role) &&
+                (best == from.end() || Distance(*it, anchor) < Distance(*best, anchor)))
+                best = it;
+        if (best == from.end())
+            return false;
+        party.push_back(*best);
+        from.erase(best);
+        return true;
+    }
+
+    struct Option
+    {
+        Dungeon const* dungeon;
+        TeamId team;
+        std::vector<Candidate const*> pool;
+        bool specTank;
+    };
+
+    // Tank (by spec, or the sturdiest non-healer when the option has no spec
+    // tank), then the healer and three dps nearest to the tank's level; short
+    // of dps, spare tanks then anyone left fill in.
+    std::vector<Candidate const*> BuildParty(Option const& option)
+    {
+        std::vector<Candidate const*> pool = option.pool;
+        std::vector<Candidate const*> party;
+
+        auto lead = pool.end();
+        for (auto it = pool.begin(); it != pool.end(); ++it)
+        {
+            bool const fits = option.specTank ? (*it)->role == Role::Tank : (*it)->role != Role::Heal;
+            if (fits && (lead == pool.end() || option.specTank || (*it)->maxHealth > (*lead)->maxHealth))
+            {
+                lead = it;
+                if (option.specTank)
+                    break;  // the pool is shuffled: the first tank is a random one
+            }
+        }
+        if (lead == pool.end())
+            return {};
+        party.push_back(*lead);
+        pool.erase(lead);
+
+        Role const heal = Role::Heal;
+        Role const dps = Role::Dps;
+        Role const tank = Role::Tank;
+        Candidate const* anchor = party.front();
+        if (!TakeNearest(pool, anchor, &heal, party))
+            return {};
+        while (party.size() < 5 && TakeNearest(pool, anchor, &dps, party))
+            ;
+        while (party.size() < 5 && TakeNearest(pool, anchor, &tank, party))
+            ;
+        while (party.size() < 5 && TakeNearest(pool, anchor, nullptr, party))
+            ;
+        if (party.size() < 5)
+            return {};
+        return party;
+    }
+
+    void TryLaunch(Player* driver)
+    {
+        uint32 const window = DcSettings::GetUInt(ObjectGuid::Empty, "SelfFound.LevelWindow");
+        uint32 const fallbackMax = DcSettings::GetUInt(ObjectGuid::Empty, "SelfFound.RoleFallbackMaxLevel");
+
+        std::vector<Candidate> candidates;
         for (auto const& [guid, bot] : sRandomPlayerbotMgr.GetAllBots())
         {
             if (!Free(bot))
                 continue;
-            Candidate const c{bot, bot->GetLevel(), bot->GetTeamId()};
-            if (PlayerbotAI::IsTank(bot, true))
-                tanks.push_back(c);
-            else if (PlayerbotAI::IsHeal(bot, true))
-                heals.push_back(c);
-            else
-                dps.push_back(c);
+            Role const role = PlayerbotAI::IsTank(bot, true)   ? Role::Tank
+                              : PlayerbotAI::IsHeal(bot, true) ? Role::Heal
+                                                                : Role::Dps;
+            candidates.push_back({bot, bot->GetLevel(), bot->GetTeamId(), role, bot->GetMaxHealth()});
         }
-        if (tanks.empty() || heals.empty() || dps.size() < 3)
+        if (candidates.size() < 5)
             return;
+        Shuffle(candidates);
 
-        // The CoA dungeons of the classic world, the ones Dungeon Clear knows
-        // best; no raid, no scenario, no Outland or Northrend.
-        std::vector<DcTestDungeonRegistry::Row const*> rows;
-        for (DcTestDungeonRegistry::Row const& row : DcTestDungeonRegistry::All())
-            if (!DcTestDungeonRegistry::IsScenario(row) && !DcTestDungeonRegistry::IsRaid(row) &&
-                DcTestDungeonRegistry::ExpansionOf(row) == 0 && row.recommendedLevel)
-                rows.push_back(&row);
-
-        Shuffle(tanks);
-        Shuffle(heals);
-        Shuffle(dps);
-        Shuffle(rows);
-
-        for (Candidate const& tank : tanks)
+        // Every (dungeon, faction) a party could be formed for, weighted by the
+        // bots it could take: the most populated levels get the most parties.
+        std::vector<Dungeon> const dungeons = ClassicDungeons(window);
+        std::vector<Option> options;
+        uint32 totalWeight = 0;
+        for (Dungeon const& dungeon : dungeons)
         {
-            for (DcTestDungeonRegistry::Row const* row : rows)
+            for (TeamId team : {TEAM_ALLIANCE, TEAM_HORDE})
             {
-                if (!Near(tank.level, row->recommendedLevel, window))
+                Option option{&dungeon, team, {}, false};
+                uint32 tanks = 0;
+                uint32 heals = 0;
+                for (Candidate const& c : candidates)
+                    if (c.team == team && c.level >= dungeon.lo && c.level <= dungeon.hi)
+                    {
+                        option.pool.push_back(&c);
+                        tanks += c.role == Role::Tank ? 1 : 0;
+                        heals += c.role == Role::Heal ? 1 : 0;
+                    }
+                option.specTank = tanks > 0;
+                if (option.pool.size() < 5 || !heals || (!tanks && dungeon.hi > fallbackMax))
                     continue;
-
-                std::vector<Candidate> healPool = heals;
-                std::vector<Candidate> dpsPool = dps;
-                std::vector<Player*> party{tank.bot};
-                if (Player* heal = Take(healPool, tank.team, row->recommendedLevel, window))
-                    party.push_back(heal);
-                while (party.size() >= 2 && party.size() < 5)
-                {
-                    Player* member = Take(dpsPool, tank.team, row->recommendedLevel, window);
-                    if (!member)
-                        break;
-                    party.push_back(member);
-                }
-                if (party.size() < 5)
-                    continue;
-
-                // Roles are positional: tank, healer, then the three dps.
-                std::string spec;
-                for (Player* member : party)
-                    spec += (spec.empty() ? "" : ",") + member->GetName();
-
-                std::string msg;
-                std::string runId;
-                DcTestRunManager::StartErr err = DcTestRunManager::StartErr::None;
-                if (!DcTestRunManager::Instance().StartRoster(driver, row->token, spec, /*heroic*/ false, &msg,
-                                                              kPlanId, &err, &runId, /*coaDifficulty*/ 0,
-                                                              /*regear*/ false, /*onlineRandomBots*/ true))
-                {
-                    LOG_INFO("playerbots.dungeonclear", "SELFFOUND not started ({} in {}): {}", spec, row->token,
-                             msg);
-                    return;
-                }
-
-                Party started;
-                started.runId = runId;
-                for (Player* member : party)
-                {
-                    RandomBotLevelMgr::SetHeld(member->GetGUID(), true);
-                    started.members.push_back(member->GetGUID());
-                }
-                _parties.push_back(std::move(started));
-                LOG_INFO("playerbots.dungeonclear", "SELFFOUND START {} dungeon={} party={} ({} self-found parties)",
-                         runId, row->token, spec, _parties.size());
-                return;
+                totalWeight += uint32(option.pool.size());
+                options.push_back(std::move(option));
             }
         }
+        if (options.empty())
+        {
+            LOG_DEBUG("playerbots.dungeonclear", "SELFFOUND no party possible ({} free self-found bots)",
+                      candidates.size());
+            return;
+        }
+
+        uint32 pick = urand(0, totalWeight - 1);
+        Option const* chosen = &options.back();
+        for (Option const& option : options)
+        {
+            if (pick < option.pool.size())
+            {
+                chosen = &option;
+                break;
+            }
+            pick -= uint32(option.pool.size());
+        }
+
+        std::vector<Candidate const*> const party = BuildParty(*chosen);
+        if (party.size() != 5)
+            return;
+
+        // Roles are positional: tank, healer, then the three dps.
+        std::string spec;
+        float ilvl = 0.f;
+        uint32 minLevel = party.front()->level;
+        uint32 maxLevel = minLevel;
+        for (Candidate const* member : party)
+        {
+            spec += (spec.empty() ? "" : ",") + member->bot->GetName();
+            ilvl += AscensionAverageItemLevel::Equipped(member->bot);
+            minLevel = std::min(minLevel, member->level);
+            maxLevel = std::max(maxLevel, member->level);
+        }
+        ilvl /= float(party.size());
+
+        DcTestDungeonRegistry::Row const* row = chosen->dungeon->row;
+        std::string msg;
+        std::string runId;
+        DcTestRunManager::StartErr err = DcTestRunManager::StartErr::None;
+        if (!DcTestRunManager::Instance().StartRoster(driver, row->token, spec, /*heroic*/ false, &msg,
+                                                      DcSelfFoundPlanner::kPlanId, &err, &runId,
+                                                      /*coaDifficulty*/ 0, /*regear*/ false,
+                                                      /*onlineRandomBots*/ true))
+        {
+            LOG_INFO("playerbots.dungeonclear", "SELFFOUND not started ({} in {}): {}", spec, row->token, msg);
+            return;
+        }
+
+        Party started;
+        started.runId = runId;
+        for (Candidate const* member : party)
+        {
+            RandomBotLevelMgr::SetHeld(member->bot->GetGUID(), true);
+            started.members.push_back(member->bot->GetGUID());
+        }
+        _parties.push_back(std::move(started));
+        LOG_INFO("playerbots.dungeonclear",
+                 "SELFFOUND START {} dungeon={} levels={}-{} faction={} ilvl={:.1f} tank={} party={} "
+                 "(pool {} of {} free, {} options; {} self-found parties)",
+                 runId, row->token, minLevel, maxLevel, chosen->team == TEAM_ALLIANCE ? "alliance" : "horde", ilvl,
+                 chosen->specTank ? "spec" : "fallback", spec, chosen->pool.size(), candidates.size(),
+                 options.size(), _parties.size());
     }
 }
 
 namespace DcSelfFoundPlanner
 {
+    void OnRunFinished(DcTestRunRecord::Record const& rec)
+    {
+        // name level:ilvl before->after/slots changed, per member.
+        std::string members;
+        for (DcTestRunRecord::CompEntry const& c : rec.comp)
+            members += Acore::StringFormat("{}{} {}:{:.1f}->{:.1f}/{}", members.empty() ? "" : " ", c.name, c.level,
+                                           c.itemLevel, c.itemLevelAfter, c.itemsChanged);
+
+        for (auto it = _parties.begin(); it != _parties.end(); ++it)
+            if (it->runId == rec.runId)
+            {
+                Unhold(it->members);
+                _parties.erase(it);
+                break;
+            }
+
+        LOG_INFO("playerbots.dungeonclear",
+                 "SELFFOUND END {} dungeon={} level={} result={} bosses={}/{} duration={}s ilvl={:.1f}->{:.1f} "
+                 "members=[{}] ({} self-found parties left)",
+                 rec.runId, rec.dungeon, rec.level, rec.result, rec.bossesKilled, rec.bossesTotal, rec.durationS,
+                 rec.gearIlvlBefore, rec.gearIlvlAfter, members, _parties.size());
+    }
+
     void Tick(uint32 diff)
     {
         if (!_parties.empty())
@@ -246,6 +419,6 @@ namespace DcSelfFoundPlanner
         if (!driver)
             return;
 
-        TryLaunch(driver, DcSettings::GetUInt(ObjectGuid::Empty, "SelfFound.LevelWindow"));
+        TryLaunch(driver);
     }
 }

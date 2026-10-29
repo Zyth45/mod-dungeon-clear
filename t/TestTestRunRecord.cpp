@@ -177,14 +177,16 @@ TEST(DcTestRunRecordTest, BossRosterSerializesInProgressionOrder)
               std::string::npos);
 }
 
-TEST(DcTestRunRecordTest, SchemaIsFourteen)
+TEST(DcTestRunRecordTest, SchemaIsFifteen)
 {
     // 12: added combatHolders[].trigger, and with it a change of meaning in the
     // sibling `legitimate` field — a trigger creature now sinks the verdict.
     // 13: added the scenario block (scenario/scenarioOf/focus/successBy/
     // tailPending/extras).
     // 14: added difficulty (the raw group difficulty; CoA raid modes on raids).
-    EXPECT_NE(ToJsonl(SampleRecord()).find("\"schema\":14"), std::string::npos);
+    // 15: added gear worn before/after (gearIlvlBefore/After, itemLevelAfter,
+    // itemsChanged).
+    EXPECT_NE(ToJsonl(SampleRecord()).find("\"schema\":15"), std::string::npos);
     EXPECT_NE(ToJsonl(SampleRecord()).find("\"size\":"), std::string::npos);
     EXPECT_NE(ToJsonl(SampleRecord()).find("\"difficulty\":"), std::string::npos);
 }
@@ -251,6 +253,27 @@ TEST(DcTestRunRecordTest, GearCeilingSerializes)
 
     r.gearIlvl = 0;
     EXPECT_NE(ToJsonl(r).find("\"gearIlvl\":0"), std::string::npos);
+}
+
+// What the party wore going in and coming out (schema 15): the self-found
+// parties gear up from their own loot, and this pair is how that shows.
+TEST(DcTestRunRecordTest, GearWornBeforeAfterSerializes)
+{
+    Record r = SampleRecord();
+    r.gearIlvlBefore = 12.5f;
+    r.gearIlvlAfter = 15.25f;
+    CompEntry c;
+    c.name = "Tank";
+    c.itemLevel = 12.f;
+    c.itemLevelAfter = 16.f;
+    c.itemsChanged = 3;
+    r.comp.push_back(c);
+
+    std::string const line = ToJsonl(r);
+    EXPECT_NE(line.find("\"gearIlvlBefore\":12.5"), std::string::npos);
+    EXPECT_NE(line.find("\"gearIlvlAfter\":15.25"), std::string::npos);
+    EXPECT_NE(line.find("\"itemLevelAfter\":16"), std::string::npos);
+    EXPECT_NE(line.find("\"itemsChanged\":3"), std::string::npos);
 }
 
 // ---- roster runs (hand-picked real characters) ------------------------------

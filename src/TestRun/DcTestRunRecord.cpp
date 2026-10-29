@@ -117,6 +117,8 @@ namespace DcTestRunRecord
           << ",\"compSeed\":" << rec.compSeed
           << ",\"gearIlvl\":" << rec.gearIlvl
           << ",\"gearQuality\":" << rec.gearQuality
+          << ",\"gearIlvlBefore\":" << rec.gearIlvlBefore
+          << ",\"gearIlvlAfter\":" << rec.gearIlvlAfter
           << ",\"roster\":" << (rec.roster ? "true" : "false")
           << ",\"comp\":[";
         for (std::size_t i = 0; i < rec.comp.size(); ++i)
@@ -142,6 +144,8 @@ namespace DcTestRunRecord
               << ",\"o\":" << c.fromO << "}"
               << ",\"itemLevel\":" << c.itemLevel
               << ",\"pvePower\":" << c.pvePower
+              << ",\"itemLevelAfter\":" << c.itemLevelAfter
+              << ",\"itemsChanged\":" << c.itemsChanged
               << ",\"damageDone\":" << c.damageDone
               << ",\"healingDone\":" << c.healingDone
               << ",\"damageTaken\":" << c.damageTaken

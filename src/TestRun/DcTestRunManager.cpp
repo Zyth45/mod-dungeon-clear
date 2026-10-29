@@ -18,6 +18,7 @@
 #include "Playerbots.h"
 #include "PlayerbotMgr.h"
 #include "RandomPlayerbotMgr.h"
+#include "TestRun/DcSelfFoundPlanner.h"
 
 #include "Ai/Dungeon/DungeonClear/Settings/DcSettings.h"
 
@@ -544,7 +545,11 @@ void DcTestRunManager::Tick(uint32 diff)
         {
             if ((*it)->Done())
             {
-                if (!(*it)->PlanId().empty())
+                // A self-found party: the planner logs its gear before/after and
+                // gives its members back to the level brackets.
+                if ((*it)->PlanId() == DcSelfFoundPlanner::kPlanId)
+                    DcSelfFoundPlanner::OnRunFinished((*it)->RecordData());
+                else if (!(*it)->PlanId().empty())
                 {
                     DcTestRunRecord::Record const& rec = (*it)->RecordData();
                     DcTestPlan::RunOutcome outcome;

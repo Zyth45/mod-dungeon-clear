@@ -26,6 +26,7 @@
 #include "GuildMgr.h"
 #include "InstanceSaveMgr.h"
 #include "InstanceScript.h"
+#include "Item.h"
 #include "Log.h"
 #include "Map.h"
 #include "ObjectAccessor.h"
@@ -130,6 +131,17 @@ void DcTestRunJob::ArmTrace(Player* tank, AiObjectContext* ctx)
     _trace->Arm();
     LOG_INFO("playerbots.dungeonclear", "TESTRUN {} trace armed (Pull Lab recorder, {} members)",
              _record.runId, _slots.size());
+}
+
+// The item entry in every equipment slot (0 = empty): compared at teardown to
+// count the slots a member changed during the run (record schema 15).
+static std::vector<std::uint32_t> EquippedEntries(Player* bot)
+{
+    std::vector<std::uint32_t> entries(EQUIPMENT_SLOT_END, 0);
+    for (uint8 slot = EQUIPMENT_SLOT_START; slot < EQUIPMENT_SLOT_END; ++slot)
+        if (Item* item = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
+            entries[slot] = item->GetEntry();
+    return entries;
 }
 
 void DcTestRunJob::FinishTrace()
@@ -994,6 +1006,9 @@ void DcTestRunJob::TickProvisioning()
     entry.role = slot.role;
     entry.guid = slot.guid.GetRawValue();
     entry.level = bot->GetLevel();
+    entry.itemLevel = AscensionAverageItemLevel::Equipped(bot);
+    entry.pvePower = AscensionItemPower::EquippedPvE(bot);
+    _equipBefore[entry.guid] = EquippedEntries(bot);
     _record.comp.push_back(entry);
 
     LOG_INFO("playerbots.dungeonclear",
@@ -1117,6 +1132,7 @@ void DcTestRunJob::TickProvisioningRoster()
         // the heroic queue (AscensionLfgRandomDungeonRequirements).
         entry.itemLevel = AscensionAverageItemLevel::Equipped(bot);
         entry.pvePower = AscensionItemPower::EquippedPvE(bot);
+        _equipBefore[entry.guid] = EquippedEntries(bot);
         DcTestRunStats::Track(slot.guid.GetCounter());
         _record.comp.push_back(entry);
 
@@ -2774,6 +2790,37 @@ void DcTestRunJob::LogoutBots(Player* gm)
     }
 }
 
+void DcTestRunJob::CaptureGearAfter()
+{
+    float before = 0.f;
+    float after = 0.f;
+    std::uint32_t counted = 0;
+    for (DcTestRunRecord::CompEntry& c : _record.comp)
+    {
+        Player* bot = ObjectAccessor::FindPlayer(ObjectGuid(c.guid));
+        if (!bot || !bot->IsInWorld())
+            continue;
+        c.itemLevelAfter = AscensionAverageItemLevel::Equipped(bot);
+        auto const it = _equipBefore.find(c.guid);
+        if (it != _equipBefore.end())
+        {
+            std::vector<std::uint32_t> const now = EquippedEntries(bot);
+            c.itemsChanged = 0;
+            for (std::size_t i = 0; i < now.size() && i < it->second.size(); ++i)
+                if (now[i] != it->second[i])
+                    ++c.itemsChanged;
+        }
+        before += c.itemLevel;
+        after += c.itemLevelAfter;
+        ++counted;
+    }
+    if (counted)
+    {
+        _record.gearIlvlBefore = before / counted;
+        _record.gearIlvlAfter = after / counted;
+    }
+}
+
 void DcTestRunJob::Teardown()
 {
     // gates the observers off before DisableDungeonClear; the exchange also
@@ -2849,6 +2896,10 @@ void DcTestRunJob::Teardown()
         for (Slot const& slot : _slots)
             if (Player* bot = ObjectAccessor::FindPlayer(slot.guid))
                 UndoUnwantedGuild(bot, slot);
+
+    // What the party wears now, while it is still in the world: the loot it
+    // equipped during the run (record schema 15). Read before the logout below.
+    CaptureGearAfter();
 
     // Alive and out of the dungeon before anything logs the party out — a dead
     // member reaching LogoutPlayer is saved as a ghost at the instance graveyard.

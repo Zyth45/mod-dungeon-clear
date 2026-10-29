@@ -311,6 +311,8 @@ private:
     void FailSetup(std::string const& why);
     void Finish(DcTestRun::Verdict verdict, std::string const& failReason);
     void Teardown();
+    // Item level and changed slots of every member still in the world (schema 15).
+    void CaptureGearAfter();
     // Put the party back the way the run found it: alive, and out of the
     // instance. Resurrects every dead member and sends the party to its bind
     // point (where its own hearthstone would land it). Must run BEFORE
@@ -456,7 +458,10 @@ private:
     bool _teleportIssued = false;      // wave 1 (the leader) has been sent
     bool _followersTeleported = false; // wave 2 (everybody else) has been sent
     uint32 _lastTeleportMs = 0;        // stage time of the last transfer issued
-    std::unordered_map<uint32, uint32> _combatMs;  // member guid low -> ms in combat while monitored
+    std::unordered_map<uint32, uint32> _combatMs;
+    // Equipped item entries per member (raw guid) when the run took it; the
+    // teardown counts the slots that changed (record schema 15).
+    std::unordered_map<std::uint64_t, std::vector<std::uint32_t>> _equipBefore;  // member guid low -> ms in combat while monitored
     std::unordered_map<uint32, int32> _lastManaPct; // member guid low -> last living mana %
     uint32 _tankAwayMs = 0;            // time the tank has spent off the run's map
     static constexpr uint32 TANK_AWAY_LIMIT_MS = 15 * 1000;

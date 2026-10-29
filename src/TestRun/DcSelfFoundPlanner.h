@@ -7,34 +7,52 @@
 #define _PLAYERBOT_DCSELFFOUNDPLANNER_H
 
 #include "Define.h"
+#include "TestRun/DcTestRunRecord.h"
 
 // Self-found groups (CoA 2.8.2). playerbots' AiPlayerbot.CoaSelfFoundBotsPercent
-// makes a share of the random bots self-found: from level 10 they keep the gear
-// they loot, nothing re-gears them. This planner gives them dungeons to loot:
-// every DungeonClear.SelfFound.IntervalS it forms ONE party of five such bots
-// (a tank, a healer, three dps by their specs, one faction, all within
-// SelfFound.LevelWindow levels of the dungeon's recommended level) and starts it
-// as a hand-picked `.dc test` run (DcTestRunManager::StartRoster, planId
-// "selffound") under the headless driver. No respec, no regear, no relevel:
-// the run is the same one `.dc test start <d> party=...` makes, normal loot
-// included. At the end the harness revives the party, sends it to its bind
-// point and logs it out; the random-bot rotation logs it in again later.
+// picks a share of the random bots (by guid, whatever their level) that wear
+// only what they loot. This planner gives them the dungeons of their level, at
+// every level: every DungeonClear.SelfFound.IntervalS it forms ONE party of five
+// of them and starts it as a hand-picked `.dc test` run (DcTestRunManager::
+// StartRoster, planId "selffound") under the headless driver. No respec, no
+// regear, no relevel, normal loot.
+//
+// Which dungeon: every classic 5-man of the registry (RFC, Wailing Caverns,
+// Deadmines, SFK, Stockade, BFD, Gnomeregan, RFK, the SM wings, ... up to the
+// level 60 ones) with the level range a player gets it at (13-18 for RFC, ...;
+// SelfFound.LevelWindow levels lower still). The free candidates are counted per
+// (dungeon, faction) and one of the possible pairs is drawn, weighted by how
+// many bots it could take: the most populated levels get the most parties, and
+// a low-level population (a realm restarted from level 1) gets RFC, WC and DM.
+//
+// Roles: a healer by spec is required. A tank by spec is preferred; below
+// SelfFound.RoleFallbackMaxLevel a party without one is led by its sturdiest
+// member (classless CoA bots of low level rarely carry a tank spec).
 //
 // Who is taken: online random bots of the share (PlayerbotFactory::
-// IsSelfFoundBot), alive, in the open world, in no group, invite, queue,
-// battleground or flight, with no master, not offered to a player by the LFG
-// chat, not held by a bench and not in another run. A player's character, alt
-// or group member is never one of them.
+// IsSelfFoundGuid) that are self-found now (IsSelfFoundBot, or the realm's own
+// self-found mode, SelfFoundAt), alive, in the open world, in no group, invite,
+// queue, battleground or flight, with no master, not offered to a player by the
+// LFG chat, not held by a bench and not in another run. A player's character,
+// alt or group member is never one of them.
 //
-// Load: at most SelfFound.MaxGroups parties at once (default 2), the bots are
-// already logged in, and TestRun.MaxConcurrent still caps every run. The bots of
-// a party are held (RandomBotLevelMgr::SetHeld) while it runs, so neither the
-// level brackets nor the orphan-group sweep of playerbots take them out of it.
+// Load: at most SelfFound.MaxGroups parties at once, the bots are already logged
+// in, and TestRun.MaxConcurrent still caps every run. The members of a party are
+// held (RandomBotLevelMgr::SetHeld) while it runs. The run record carries the
+// item level each member wore going in and coming out (dc_testruns.jsonl,
+// schema 15), and so do the SELFFOUND START / END log lines.
 //
 // World thread only.
 namespace DcSelfFoundPlanner
 {
+    // The planId of the self-found runs (dc_testruns.jsonl, live file).
+    inline constexpr char const* kPlanId = "selffound";
+
     void Tick(uint32 diff);
+
+    // DcTestRunManager, as a run of planId kPlanId is removed: gives its
+    // members back and logs SELFFOUND END with the gear before/after.
+    void OnRunFinished(DcTestRunRecord::Record const& rec);
 }
 
 #endif  // _PLAYERBOT_DCSELFFOUNDPLANNER_H

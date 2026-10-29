@@ -840,11 +840,14 @@ inline constexpr DcSettingDef kDcSettings[] =
     // Self-found groups (DcSelfFoundPlanner, AiPlayerbot.CoaSelfFoundBotsPercent
     // in playerbots.conf): at most MaxGroups parties of self-found random bots
     // in dungeons at once (0 = none), one new party tried every IntervalS, of
-    // members within LevelWindow levels of the dungeon's recommended level.
-    // Small defaults: the realm runs on the player's own PC.
-    { "SelfFound.MaxGroups",     DcType::UInt,      2,  0,     10, false },
-    { "SelfFound.IntervalS",     DcType::UInt,    600, 60,  86400, false },
-    { "SelfFound.LevelWindow",   DcType::UInt,      3,  0,     10, false },
+    // members in the dungeon's level range opened LevelWindow levels lower, a
+    // party without a tank by spec allowed in dungeons up to
+    // RoleFallbackMaxLevel. 4 parties = 20 bots in instances: ~8-12 parties an
+    // hour at low level (20-30 min runs), bounded for a home PC.
+    { "SelfFound.MaxGroups",             DcType::UInt,      4,  0,     20, false },
+    { "SelfFound.IntervalS",             DcType::UInt,     90, 30,  86400, false },
+    { "SelfFound.LevelWindow",           DcType::UInt,      2,  0,     10, false },
+    { "SelfFound.RoleFallbackMaxLevel",  DcType::UInt,     30,  0,     60, false },
     { "TestRun.Plan.ResetGuardMin", DcType::UInt,  45,  0,    720, false },
 
     // RDF instant queue fill (DungeonClear.DungeonQueueFill.*). Server policy,

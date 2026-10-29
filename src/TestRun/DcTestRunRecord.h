@@ -51,6 +51,12 @@ namespace DcTestRunRecord
         // and the seconds it spent in combat (DPS = damageDone / combatS).
         float itemLevel = 0.f;
         std::uint32_t pvePower = 0;
+        // Schema 15: what it wore when the run let it go (teardown, still in
+        // the world) and how many equipment slots changed in between. A
+        // self-found party (planId "selffound") gears up from its own loot,
+        // and this pair is the proof. 0 / 0 when the member was gone by then.
+        float itemLevelAfter = 0.f;
+        std::uint32_t itemsChanged = 0;
         std::uint64_t damageDone = 0;
         std::uint64_t healingDone = 0;
         std::uint64_t damageTaken = 0;
@@ -161,7 +167,11 @@ namespace DcTestRunRecord
         //     compare them with a full-dungeon run of the same map.
         // 14: added difficulty (the raw difficulty the group was set to; on a
         //     raid map CoA's 0 Normal / 1 Heroic / 2 Mythic / 3 Ascended).
-        std::uint32_t schema = 14;
+        // 15: added gear before/after: per member itemLevelAfter/itemsChanged,
+        //     and the party averages gearIlvlBefore/gearIlvlAfter (item level
+        //     worn, not a ceiling: gearIlvl stays the regear ceiling, 0 on a
+        //     roster run that is never regeared).
+        std::uint32_t schema = 15;
         std::string runId;
         std::string planId;       // owning `.dc test plan`, "" for ad-hoc runs
         std::string dungeon;      // registry token
@@ -186,6 +196,11 @@ namespace DcTestRunRecord
         // the same ceiling.
         std::uint32_t gearIlvl = 0;
         std::uint32_t gearQuality = 0;
+        // Party average of the item level each member WORE when the run took it
+        // and when it let it go (schema 15). Unlike gearIlvl these are filled on
+        // every run, roster runs included.
+        float gearIlvlBefore = 0.f;
+        float gearIlvlAfter = 0.f;
         // Hand-picked party of real player characters (`party=`) rather than a
         // seeded draw from the addclass pool. compSeed is 0 on these runs: the
         // roster IS the comp, so there is nothing to replay from a seed.
