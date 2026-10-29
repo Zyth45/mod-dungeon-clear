@@ -132,6 +132,8 @@ namespace DcTestDungeonRegistry
             // speed — see the raid-support plan). Classic rows run at 60.
             { "mc",              "Molten Core",                   409,  1091.89f,  -466.99f, -105.08f, 3.142f, 60, "" },
             { "bwl",             "Blackwing Lair",                469, -7673.03f, -1106.08f,  396.65f, 0.178f, 60, "" },
+            // Zul'Gurub, from the same table (areatrigger 3928).
+            { "zg",              "Zul'Gurub",                     309, -11916.10f, -1230.53f,  92.53f, 4.719f, 60, "" },
             // Gruul's Lair (TBC, level 70, 25-man): two kill-credit encounters
             // — High King Maulgar with his four-ogre council (instance
             // MINIONS of his encounter, despawned on his death), then Gruul —
