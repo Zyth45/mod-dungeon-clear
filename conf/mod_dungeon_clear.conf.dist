@@ -716,7 +716,7 @@ DungeonClear.TrashWidthCap = 30.0
 #        Type 2 = File. LogLevel 4 = Info, 5 = Debug, 6 = Trace.
 #
 
-Appender.DungeonClear=2,4,0,DungeonClear.log
+#Appender.DungeonClear=2,4,0,DungeonClear.log
 
 #
 #    Logger.playerbots.dungeonclear
@@ -733,7 +733,7 @@ Appender.DungeonClear=2,4,0,DungeonClear.log
 #        module's error paths log to `playerbots`, which keeps its own routing.
 #
 
-Logger.playerbots.dungeonclear=4,DungeonClear
+#Logger.playerbots.dungeonclear=4,DungeonClear
 
 #
 #    Advanced-pull sub-channel (playerbots.dungeonclear.pull).
