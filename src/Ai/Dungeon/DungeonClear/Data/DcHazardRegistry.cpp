@@ -718,7 +718,17 @@ namespace
     // Guard (17461 normal, SmartAI on-death SetData 2) or Porung (20923 heroic,
     // boss_porung::JustDied) cancels the scout's whole scheduler — waves and
     // arrows together. See ShatteredHallsEvents.cpp, which sequences exactly that.
-    constexpr std::array<DcTrapHazard, 3> kTrapHazards = {{
+    //
+    // Molten Core again, gameobject 177704 "Lava Bomb" -- the fire patch Magmadar's two Lava
+    // Bombs (19411 on someone within 10yd of him, 20474 on someone farther) leave under their
+    // target, each every 12-15s. gameobject_template: type 6 (TRAP), Data2 diameter 5, Data3
+    // spell 19428 "Conflagration" (400 fire a second for 8s, 5yd). The melee one lasts 30s and
+    // the ranged one 60s, so several are alive at once and one is usually under the tank.
+    //
+    // vacate 5 (the spell's own radius) + hold 2 = in danger inside 7yd, matching the
+    // placement radius; slack 6 aims the step at 11yd. Everyone leaves, the tank included --
+    // "tank him where he stands and move only for a Lava Bomb" is the whole positional fight.
+    constexpr std::array<DcTrapHazard, 4> kTrapHazards = {{
         //                   radius  zBand  vacate  hold  slack
         // Blaze — the 60s fire patch a flame arrow leaves on the gauntlet floor.
         { 540, 181915, 5.0f, 6.0f, 3.5f, 2.0f, 6.0f },
@@ -736,6 +746,8 @@ namespace
         // fought on its rim. 6yd keep-out off the 5yd trigger radius; vacate at
         // the trigger radius, the cast spell's own radius being unread.
         { 409, 178164, 6.0f, 4.0f, 5.0f, 2.0f, 6.0f },
+        // Lava Bomb -- the fire patch under whoever Magmadar bombed.
+        { 409, 177704, 7.0f, 6.0f, 5.0f, 2.0f, 6.0f },
     }};
 }
 
