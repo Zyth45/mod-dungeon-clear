@@ -14,6 +14,7 @@
 
 #include "Ai/Dungeon/DungeonClear/Data/DungeonEventRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Data/Events/DungeonEventTables.h"
+#include "Ai/Dungeon/DungeonClear/Data/BossPullbackRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Overrides/BossRosterRegistry.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcDifficulty.h"
 
@@ -55,6 +56,32 @@ TEST(DcClassicRaidsTest, ZulGurubAddsArlokkOnTheGong)
     EXPECT_GE(arlokk->encounterIndex, 32u);    // never aliases a DBC bit
     EXPECT_EQ(arlokk->orderOverride, 7);
     EXPECT_NEAR(arlokk->x, -11569.2f, 0.1f);   // on the gong
+}
+
+TEST(DcClassicRaidsTest, ZulGurubForcesJeklikOffHerLedge)
+{
+    // She waits passive on a ledge the navmesh can't reach, so the row has to
+    // force her.
+    BossPullback const* row = BossPullbackRegistry::Find(309, 14517);
+    ASSERT_NE(row, nullptr);
+    EXPECT_GT(row->forceAggroRange, 0.0f);
+    EXPECT_FALSE(row->summonWhenStuckBelow);
+
+    // Her roster anchor has to be the same camp, or boss navigation walks the
+    // party under the ledge and the pull never arms (it gates on the anchor).
+    std::vector<DungeonBossInfo> base = {
+        Static(14507, 0, 309), Static(14517, 1, 309), Static(14510, 2, 309),
+        Static(11382, 3, 309), Static(14509, 5, 309), Static(11380, 8, 309),
+        Static(14834, 9, 309),
+    };
+    auto const out = BossRosterRegistry::Apply(309, DcDiffKey::Raid(0), base);
+    DungeonBossInfo const* jeklik = FindEntry(out, 14517);
+    ASSERT_NE(jeklik, nullptr);
+    EXPECT_EQ(jeklik->kind, DungeonAnchorKind::Boss);
+    EXPECT_EQ(jeklik->encounterIndex, 1u) << "keeps her own kill-bit";
+    EXPECT_FLOAT_EQ(jeklik->x, row->campX);
+    EXPECT_FLOAT_EQ(jeklik->y, row->campY);
+    EXPECT_FLOAT_EQ(jeklik->z, row->campZ);
 }
 
 TEST(DcClassicRaidsTest, ZulGurubGongEventGatesArlokk)

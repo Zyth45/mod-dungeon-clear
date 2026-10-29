@@ -18,8 +18,14 @@
 // zulgurub.h) and the world DB spawn rows; not yet validated live.
 //
 // Seven bosses auto-derive from BossSpawnIndex (kill-credit rows + creature
-// spawns): Venoxis, Jeklik, Mar'li, Mandokir, Thekal, Jin'do, Hakkar. Three
-// encounters have no creature spawn row and are therefore silently absent:
+// spawns): Venoxis, Jeklik, Mar'li, Mandokir, Thekal, Jin'do, Hakkar.
+//
+//   * HIGH PRIESTESS JEKLIK (14517) is re-anchored on a floor camp below her
+//     cave ledge, keeping her own kill-bit, and BossPullbackRegistry has the
+//     tank force her into combat from there. She waits passive on a ledge with
+//     no navigable route, so the ordinary engage never lands (see her row).
+//
+// Three encounters have no creature spawn row and are therefore silently absent:
 //
 //   * HIGH PRIESTESS ARLOKK (14515). Summoned by clicking the Gong of Bethekk
 //     (GO 180526, go_gong_of_bethekk::OnGossipHello) at PosSummonArlokk; she then
@@ -46,6 +52,10 @@ namespace
     constexpr uint32 kMapId = 309;
 
     constexpr uint32 kArlokk = 14515;
+    constexpr uint32 kJeklik = 14517;
+
+    // Jeklik's pull-back camp; must match her BossPullbackRegistry row.
+    constexpr float kJeklikCampX = -12286.9f, kJeklikCampY = -1384.0f, kJeklikCampZ = 132.9f;
     constexpr uint32 kGongOfBethekk = 180526;
 
     // zulgurub.h boss-state slot.
@@ -95,6 +105,10 @@ void RegisterZulGurubRoster(std::vector<BossRosterPatch>& t)
 
     BossRosterPatch p;
     p.mapId = kMapId;
+    p.remove = { kJeklik };
+    p.add.push_back(MakeBoss(kJeklik, kMapId, "High Priestess Jeklik",
+                             kJeklikCampX, kJeklikCampY, kJeklikCampZ,
+                             /*completionFrom*/ kJeklik));
     p.add.push_back(MakeBoss(kArlokk, kMapId, "High Priestess Arlokk",
                              kGongX, kGongY, kGongZ, /*completionFrom*/ 0,
                              /*orderOverride*/ 7, kSlotArlokk));
