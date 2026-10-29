@@ -632,7 +632,16 @@ namespace
     // There is no GAMEOBJECT_TYPE_TRAP on map 658 and no creature on it carries a
     // permanent aura in creature_template_addon, so map 658 needs neither a
     // DcTrapHazard nor a DcHazardEmitter row.
-    constexpr std::array<DcGroundHazard, 12> kGroundHazards = {{
+    //
+    // Molten Core (map 409), spell 19717 "Rain of Fire" -- Gehennas'. A persistent area aura
+    // (SPELL_EFFECT_PERSISTENT_AREA_AURA, 10yd, 6s, ~1000 fire every 2s) dropped on a random
+    // raid member, and recast every 6s: for the whole fight there is one burning somewhere,
+    // under the tank and the melee as readily as under a healer. Nothing to fight and nothing
+    // to interrupt; the answer is to walk out, tank and all, and let him be dragged with it.
+    //
+    // vacate 10 is the aura; hold 2 reads in danger inside 12yd; slack 6 aims the step at
+    // 16yd, outside the 13yd placement radius.
+    constexpr std::array<DcGroundHazard, 13> kGroundHazards = {{
         //                   radius  zBand  vacate  hold  slack
         // Cloud of Disease — the pool a dying Diseased Ghoul (10495) leaves.
         { 289, 17742, 8.0f, 6.0f, 5.0f, 2.0f, 6.0f },
@@ -664,6 +673,8 @@ namespace
         // pool lands under a party that is camped on the altar by a 70.5yd leash
         // and cannot simply relocate, so the answer is a step, not a move.
         { 668, 72362, 6.0f, 6.0f, 3.0f, 2.0f, 6.0f },
+        // Rain of Fire -- Gehennas', on a random raid member every 6s.
+        { 409, 19717, 13.0f, 6.0f, 10.0f, 2.0f, 6.0f },
     }};
 
     // ---- the trap table --------------------------------------------------
