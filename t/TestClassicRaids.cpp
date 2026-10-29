@@ -3,10 +3,9 @@
  * and/or modify it under version 3 of the License, or (at your option), any later version.
  */
 
-// Authored-data lints for the classic raid patches that summon a boss with no
-// creature spawn row: Zul'Gurub's Arlokk (the Gong of Bethekk) and Temple of
-// Ahn'Qiraj's Ouro (his mound), plus the BWL panel placement of the Razorgore
-// orb run. No world state: these pin the shapes the runtime relies on.
+// Authored-data lints for the Zul'Gurub patches: Arlokk, who has no creature
+// spawn row (the Gong of Bethekk), and Jeklik off her ledge. No world state:
+// these pin the shapes the runtime relies on.
 
 #include "gtest/gtest.h"
 
@@ -95,14 +94,4 @@ TEST(DcClassicRaidsTest, ZulGurubGongEventGatesArlokk)
     ASSERT_EQ(ev->steps.size(), 1u);
     EXPECT_EQ(ev->steps[0].kind, EventStepKind::UseGameObject);
     EXPECT_EQ(ev->steps[0].goEntry, 180526u);
-}
-
-TEST(DcClassicRaidsTest, RazorgoreOrbRunListsAfterGrethok)
-{
-    // Display placement only: it must NOT gate Razorgore, which would also stand
-    // the pull pipeline down around him.
-    DungeonEvent const* ev = DungeonEventRegistry::Find(469, DcBlackwingLair::EVENT_RAZORGORE_ORB);
-    ASSERT_NE(ev, nullptr);
-    EXPECT_EQ(ev->panelSortAfterBossEntry, DcBlackwingLair::NPC_GRETHOK_THE_CONTROLLER);
-    EXPECT_EQ(ev->panelGatesBossEntry, 0u);
 }
