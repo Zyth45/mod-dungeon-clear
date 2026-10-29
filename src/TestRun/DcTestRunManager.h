@@ -94,10 +94,15 @@ public:
     //
     // The characters are NOT respecced, regeared, or releveled — see
     // DcTestRunJob::CreateFromRoster.
+    //
+    // onlineRandomBots (the self-found planner, DcSelfFoundPlanner): a member
+    // may be a random bot already in the world, as long as it is in no group;
+    // its login is then a no-op, and the teardown logs it out like any member
+    // (the random-bot rotation logs it in again later).
     bool StartRoster(Player* gm, std::string const& dungeonToken, std::string const& partySpec,
                      bool heroic, std::string* msg, std::string const& planId = "",
                      StartErr* errOut = nullptr, std::string* runIdOut = nullptr,
-                     uint8 coaDifficulty = 0, bool regear = false);
+                     uint8 coaDifficulty = 0, bool regear = false, bool onlineRandomBots = false);
 
     // Launch a Pull Lab party (src/Lab): the ordinary pool party of exactly
     // `comp`, handed to `driver` once it is standing in a fresh instance of

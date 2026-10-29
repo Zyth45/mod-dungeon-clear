@@ -17,6 +17,7 @@
 
 #include "Playerbots.h"
 #include "PlayerbotMgr.h"
+#include "RandomPlayerbotMgr.h"
 
 #include "Ai/Dungeon/DungeonClear/Settings/DcSettings.h"
 
@@ -188,7 +189,8 @@ bool DcTestRunManager::StartLab(Player* gm, std::string const& dungeonToken, uin
 bool DcTestRunManager::StartRoster(Player* gm, std::string const& dungeonToken,
                                    std::string const& partySpec, bool heroic, std::string* msg,
                                    std::string const& planId, StartErr* errOut,
-                                   std::string* runIdOut, uint8 coaDifficulty, bool regear)
+                                   std::string* runIdOut, uint8 coaDifficulty, bool regear,
+                                   bool onlineRandomBots)
 {
     if (errOut)
         *errOut = StartErr::None;
@@ -257,9 +259,16 @@ bool DcTestRunManager::StartRoster(Player* gm, std::string const& dungeonToken,
 
         // A human playing the character wins: AddPlayerBot no-ops on a connected
         // character, so without this the run would sit out its spawn timeout.
-        if (ObjectAccessor::FindConnectedPlayer(guid))
-            return fail(StartErr::CharacterOnline,
-                        "'" + name + "' is logged in — a roster character must be offline");
+        // The self-found planner sends random bots already in the world and in
+        // no group: those are taken as they stand.
+        if (Player* online = ObjectAccessor::FindConnectedPlayer(guid))
+        {
+            bool const freeRandomBot = onlineRandomBots && GET_PLAYERBOT_AI(online) &&
+                                       sRandomPlayerbotMgr.IsRandomBot(online) && !online->GetGroup();
+            if (!freeRandomBot)
+                return fail(StartErr::CharacterOnline,
+                            "'" + name + "' is logged in — a roster character must be offline");
+        }
 
         if (_reservedGuids.find(guid) != _reservedGuids.end())
             return fail(StartErr::CharacterBusy,

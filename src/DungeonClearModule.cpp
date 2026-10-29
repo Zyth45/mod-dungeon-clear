@@ -67,6 +67,7 @@
 
 #include "AiObjectContextAccess.h"
 #include "DcModuleEnable.h"
+#include "TestRun/DcSelfFoundPlanner.h"
 #include "DcStrategyGate.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcBreathGuard.h"
 #include "Ai/Dungeon/DungeonClear/Util/DcLeaderSignal.h"
@@ -609,6 +610,10 @@ public:
         DcTestDriver::Tick();
         DcTestPlanManager::Instance().Tick(diff);
         DcTestRunManager::Instance().Tick(diff);
+        // Self-found groups (AiPlayerbot.CoaSelfFoundBotsPercent): now and then a
+        // party of self-found random bots is sent through a dungeon of its level,
+        // as a hand-picked test run. Cheap no-op while the share is 0.
+        DcSelfFoundPlanner::Tick(diff);
         // Pull Lab scheduler: launches warm lab parties through the run
         // manager above (they tick there); this only fills free capacity.
         DcLabManager::Instance().Tick(diff);

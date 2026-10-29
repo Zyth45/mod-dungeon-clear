@@ -1810,6 +1810,52 @@ DungeonClear.TestRun.DriverAccount = "dcdriver"
 
 ###############################################################################
 #
+#   SELF-FOUND GROUPS (DungeonClear.SelfFound.*)
+#
+#   With AiPlayerbot.CoaSelfFoundBotsPercent above 0 (playerbots.conf), a share
+#   of the random bots is self-found: from level 10 they keep the gear they
+#   loot. Now and then five of them (a tank, a healer, three dps, one faction,
+#   near the dungeon's level) are sent through a classic dungeon as a
+#   hand-picked test run (planId "selffound" in dc_testruns.jsonl), looting as
+#   usual; at the end they go to their bind point and log out, and the bot
+#   rotation logs them in again later. Only free random bots are taken: never a
+#   player's character, alt or group member. The runs use the test-run driver
+#   above (created on first use). Nothing happens while the share is 0.
+#
+###############################################################################
+
+#
+#    DungeonClear.SelfFound.MaxGroups
+#        Self-found parties in dungeons at once. Each one is five bots already
+#        logged in, with one instance; TestRun.MaxConcurrent still applies.
+#        0 = no self-found party (the bots stay self-found in the world).
+#
+#        Default: 2
+#
+
+DungeonClear.SelfFound.MaxGroups = 2
+
+#
+#    DungeonClear.SelfFound.IntervalS
+#        Seconds between two tries to form a new party (one party per try).
+#
+#        Default: 600
+#
+
+DungeonClear.SelfFound.IntervalS = 600
+
+#
+#    DungeonClear.SelfFound.LevelWindow
+#        A party member is at most this many levels from the dungeon's
+#        recommended level.
+#
+#        Default: 3
+#
+
+DungeonClear.SelfFound.LevelWindow = 3
+
+###############################################################################
+#
 #   RDF INSTANT QUEUE FILL (DungeonClear.DungeonQueueFill.*)
 #
 #   When a real player uses the Dungeon Finder, provision bots with the roles

@@ -837,6 +837,14 @@ inline constexpr DcSettingDef kDcSettings[] =
     // (0 = none), and how long before the global instance reset heroic / raid
     // pool entries stop launching (0 = no guard).
     { "TestRun.Plan.CheckpointMin", DcType::UInt,  15,  0,   1440, false },
+    // Self-found groups (DcSelfFoundPlanner, AiPlayerbot.CoaSelfFoundBotsPercent
+    // in playerbots.conf): at most MaxGroups parties of self-found random bots
+    // in dungeons at once (0 = none), one new party tried every IntervalS, of
+    // members within LevelWindow levels of the dungeon's recommended level.
+    // Small defaults: the realm runs on the player's own PC.
+    { "SelfFound.MaxGroups",     DcType::UInt,      2,  0,     10, false },
+    { "SelfFound.IntervalS",     DcType::UInt,    600, 60,  86400, false },
+    { "SelfFound.LevelWindow",   DcType::UInt,      3,  0,     10, false },
     { "TestRun.Plan.ResetGuardMin", DcType::UInt,  45,  0,    720, false },
 
     // RDF instant queue fill (DungeonClear.DungeonQueueFill.*). Server policy,

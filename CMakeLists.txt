@@ -412,6 +412,11 @@ AC_ADD_CONFIG_FILE("${CMAKE_CURRENT_LIST_DIR}/conf/mod_dungeon_clear.conf.dist")
 #    refuses a hand-picked party on any other path), never roll the factory (no
 #    respec/regear/relevel: the characters fight as they are), and always unbind
 #    both difficulties first so every run gets a fresh instance.)
+# TestRun/DcSelfFoundPlanner.{h,cpp}
+#   (CoA 2.8.2 self-found groups: with playerbots' CoaSelfFoundBotsPercent > 0,
+#    forms now and then a party of five free self-found random bots near a
+#    classic dungeon's level and starts it through StartRoster(onlineRandomBots)
+#    under the headless driver; DungeonClear.SelfFound.* caps and paces it.)
 # TestRun/DcTestGearTiers.{h,cpp}
 #   (per-run gear ceiling: `.dc test start <d> ilvl=N quality=epic`, the same two
 #    options on `.dc test plan start`, and the ladder of ceilings worth offering
