@@ -300,7 +300,15 @@ namespace
     // safe-spot hop (DcIronHall, DungeonClearIronHallSafeSpot): four fire-free
     // stops on the centre line, and every member hops to one rather than stand in
     // the fire. See DcBlackrockDepths' Iron Hall block.
-    constexpr std::array<DcHazardEmitter, 13> kEmitters = {{
+    //
+    // ---- Molten Core (409): Gehennas' Flame Orb (CoA) -------------------------
+    //
+    // CoA addition (boss_gehennas.cpp): Conjure Flame Orb 2105417 summons creature 80644 at
+    // Gehennas, which walks to where its target stood and pulses fire around itself
+    // (2105418) until it despawns. Nothing to fight (copied from the WotLK Flame Orb 30702,
+    // unselectable): leave it once, every role. The pulse radius is not read here; 6yd
+    // vacate plus the default bands is a guess to check on the bench.
+    constexpr std::array<DcHazardEmitter, 14> kEmitters = {{
         //                    radius  zBand  vacate  hold  slack
         { 578, 28166, /*Unstable Sphere    (leave once)  */  6.0f,  8.0f,  8.0f, 2.0f, 6.0f },
         { 668, 36954, /*Lich King, Remorseless Winter    */ 12.0f, 10.0f,  0.0f, 2.0f, 6.0f },
@@ -315,6 +323,7 @@ namespace
         { 599, 28237, /*Dark Matter Target (leave once)  */  8.0f, 12.0f,  5.0f, 2.0f, 6.0f },
         { 230, 108982, /*Ironhand Guardian (IP, avoided) */ 30.0f, 12.0f,  0.0f, 2.0f, 6.0f },
         { 230,  8982, /*Ironhand Guardian (avoided)      */ 30.0f, 12.0f,  0.0f, 2.0f, 6.0f },
+        { 409, 80644, /*Gehennas Flame Orb (CoA, leave)  */  8.0f,  8.0f,  6.0f, 2.0f, 6.0f },
     }};
 
     // ---- the ground-pool table ------------------------------------------
