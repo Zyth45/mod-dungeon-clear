@@ -866,6 +866,10 @@ inline constexpr DcSettingDef kDcSettings[] =
     // and the rest after a failed run (also: the same five not resent before).
     { "SelfFound.WipeRetries",           DcType::UInt,      1,  0,      3, false },
     { "SelfFound.WipeCooldownMin",       DcType::UInt,     60,  0,   1440, false },
+    // The planner's own lines (config, per-tick census, START/END) at WARN:
+    // launcher installs log playerbots at WARN only. Quiet ticks then at most
+    // every 5 minutes.
+    { "SelfFound.DiagWarn",              DcType::Bool,      0,  0,      1, false },
     { "TestRun.Plan.ResetGuardMin", DcType::UInt,  45,  0,    720, false },
 
     // RDF instant queue fill (DungeonClear.DungeonQueueFill.*). Server policy,

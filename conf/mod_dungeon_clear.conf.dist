@@ -1865,10 +1865,13 @@ DungeonClear.SelfFound.LevelWindow = 2
 
 #
 #    DungeonClear.SelfFound.RoleFallbackMaxLevel
-#        A party needs a healer by spec. A tank by spec is taken when there is
-#        one; in dungeons whose range ends at this level or below, a party
-#        without one is led by its sturdiest member (low-level bots rarely
-#        carry a tank spec). 0 = always a tank by spec.
+#        Bots of levels 10-20 seldom hold a healer or tank specialization. In
+#        dungeons whose range ends at this level or below, a party with no
+#        healer (or tank) by spec takes a bot whose class has one and moves it
+#        to that specialization, as the addon recruit does (its gear stays);
+#        with no possible tank at all, the sturdiest member leads. Above this
+#        level a healer by spec is required, a tank by spec too.
+#        0 = always a healer and a tank by spec.
 #
 #        Default: 30
 #
@@ -1930,6 +1933,22 @@ DungeonClear.SelfFound.WipeRetries = 1
 #
 
 DungeonClear.SelfFound.WipeCooldownMin = 60
+
+#
+#    DungeonClear.SelfFound.DiagWarn
+#        The self-found planner logs its config once, then each try: the bots
+#        at each filter (online, self-found, free, and why the others are not),
+#        the free ones by level and faction (t tanks, h healers, d others, +h
+#        could switch to healer), the dungeons looked at with their pools, and
+#        why nothing started; plus SELFFOUND START / END. These are INFO lines
+#        of playerbots.dungeonclear; 1 logs them at WARN (installs that log
+#        playerbots at WARN only), and a try that started nothing is then
+#        reported at most every 5 minutes.
+#
+#        Default: 0
+#
+
+DungeonClear.SelfFound.DiagWarn = 0
 
 ###############################################################################
 #

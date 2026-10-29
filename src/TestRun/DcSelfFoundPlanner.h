@@ -25,16 +25,23 @@
 // many bots it could take: the most populated levels get the most parties, and
 // a low-level population (a realm restarted from level 1) gets RFC, WC and DM.
 //
-// Roles: a healer by spec is required. A tank by spec is preferred; below
-// SelfFound.RoleFallbackMaxLevel a party without one is led by its sturdiest
-// member (classless CoA bots of low level rarely carry a tank spec).
+// Roles: a healer and a tank by spec are preferred. In dungeons up to
+// SelfFound.RoleFallbackMaxLevel a missing one is a bot whose class has that
+// role, moved to a specialization of it (CoaSwitchRole, as the addon recruit
+// does, gear untouched); with no possible tank, the sturdiest member leads.
 //
-// Who is taken: online random bots of the share (PlayerbotFactory::
-// IsSelfFoundGuid) that are self-found now (IsSelfFoundBot, or the realm's own
-// self-found mode, SelfFoundAt), alive, in the open world, in no group, invite,
-// queue, battleground or flight, with no master, not offered to a player by the
-// LFG chat, not held by a bench and not in another run. A player's character,
-// alt or group member is never one of them.
+// Who is taken: online random bots that are self-found now (IsSelfFoundBot, the
+// share; or any bot of a self-found realm, SelfFoundAt), alive, in the open
+// world, in no group or invite, with no master, not past the Dungeon Finder
+// queue, not offered to a player by the LFG chat, not held by a bench, not in
+// another run, not cooling down. A bot queued for a battleground or the
+// Dungeon Finder is taken out of its queues at launch. A player's character,
+// alt or group member is never one of them. CoaSelfFoundBotsPercent of the
+// online random bots is the part kept in dungeons (MaxGroups bounds it).
+//
+// Diagnostics: the config once, then per try the census filter by filter, the
+// free bots by level and faction, the dungeons looked at and why nothing
+// started (SelfFound.DiagWarn raises them to WARN).
 //
 // Weak parties: in dungeons starting below SelfFound.StrictMinBelowLevel no
 // member is under the range's minimum, and the party is led by its
