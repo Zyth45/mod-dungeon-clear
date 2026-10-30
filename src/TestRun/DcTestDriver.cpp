@@ -44,6 +44,18 @@ namespace DcTestDriver
         bool _awaitingFlush = false;
         uint32 _flushProbedAt = 0;  // getMSTime() of the last "is it there yet" probe
 
+        // Where the driver waits between runs. A fresh driver is a human
+        // warrior standing in Northshire, where players saw a GM-flagged
+        // character nobody could explain. GM Island is out of every player's
+        // reach; one attempt per login, so a refused teleport never holds the
+        // harness back — the driver is invisible wherever it ends up.
+        constexpr uint32 kParkMap = 1;
+        constexpr float kParkX = 16222.1f;
+        constexpr float kParkY = 16252.1f;
+        constexpr float kParkZ = 12.5872f;
+        constexpr float kParkO = 1.0f;
+        bool _parkTried = false;
+
         std::string ConfName()
         {
             // showLogs=false: a missing conf line is normal (the default below is
@@ -81,6 +93,7 @@ namespace DcTestDriver
             _resolvedName = name;
             _initialized = false;
             _loginIssued = false;
+            _parkTried = false;
             return _guid;
         }
 
@@ -376,6 +389,7 @@ namespace DcTestDriver
             {
                 _initialized = false;
                 _loginIssued = false;
+                _parkTried = false;
             }
             return;
         }
@@ -384,8 +398,17 @@ namespace DcTestDriver
 
         Player* driver = FindOnline();
         PlayerbotAI* ai = driver ? GET_PLAYERBOT_AI(driver) : nullptr;
-        if (!driver || !ai)
-            return;  // still loading — poll again next tick
+        if (!driver || !ai || driver->IsBeingTeleported())
+            return;  // still loading (or landing at the park) — poll again next tick
+
+        // 0. Park it. Setup resumes on the tick after it lands.
+        if (!_parkTried)
+        {
+            _parkTried = true;
+            if ((driver->GetMapId() != kParkMap || driver->GetExactDist2d(kParkX, kParkY) > 100.0f) &&
+                driver->TeleportTo(kParkMap, kParkX, kParkY, kParkZ, kParkO))
+                return;
+        }
 
         // One-time setup, in dependency order:
         // 1. Its own PlayerbotMgr, so GET_PLAYERBOT_MGR(driver) resolves for
@@ -422,6 +445,19 @@ namespace DcTestDriver
         ai->ChangeStrategy("+passive", BOT_STATE_NON_COMBAT);
         ai->ChangeStrategy("+passive", BOT_STATE_COMBAT);
         driver->SetGameMaster(true);
+
+        // 4. Hidden from players. GM mode alone left it visible, with the GM
+        //    badge, in /who and to anyone nearby — players took it for an
+        //    intruder. Server-side GM invisibility at the session's (now GM)
+        //    security hides it from the world, /who, channels and friend
+        //    lists for every non-GM; it needs nothing visible to drive runs
+        //    (dc commands go through session security, bots are commanded by
+        //    guid). The badge flag is cosmetic only (IsGameMaster() reads the
+        //    extra flag), so it goes too, with the GM chat tag and whispers.
+        driver->RemovePlayerFlag(PLAYER_FLAGS_GM);
+        driver->SetGMChat(false);
+        driver->SetAcceptWhispers(false);
+        driver->SetGMVisible(false);
 
         _initialized = true;
         LOG_INFO("playerbots.dungeonclear",
