@@ -449,6 +449,7 @@ public:
             return;
         DcSpectator::Stop(player);
         DcSpectator::NotifyWatchedLoggingOut(player);
+        DcTestRunManager::Instance().NoteMemberLogout(player);
     }
 };
 

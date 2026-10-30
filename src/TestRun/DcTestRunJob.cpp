@@ -4,6 +4,7 @@
  */
 
 #include "TestRun/DcTestRunJob.h"
+#include "TestRun/DcTestRunManager.h"
 #include "TestRun/DcTestRunStats.h"
 #include "AscensionAverageItemLevel.h"
 #include "AscensionItemPower.h"
@@ -2252,9 +2253,13 @@ void DcTestRunJob::TickMonitoring(uint32 dt)
         {
             if (!slot.guid || ObjectAccessor::FindConnectedPlayer(slot.guid))
                 continue;
+            // The logout hook's note says which path took it (see
+            // DcTestRunManager::NoteMemberLogout); empty when none fired.
+            std::string const note = DcTestRunManager::Instance().TakeLogoutNote(slot.guid);
             Finish(DcTestRun::Verdict::FailAborted,
                    "roster member " + slot.rosterName +
-                       " left the run (owner logged in, or the character was logged out)");
+                       " left the run (owner logged in, or the character was logged out)" +
+                       (note.empty() ? std::string() : " [at logout: " + note + "]"));
             return;
         }
     }

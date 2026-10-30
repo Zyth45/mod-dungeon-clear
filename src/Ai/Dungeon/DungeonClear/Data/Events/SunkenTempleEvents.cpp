@@ -829,10 +829,14 @@ void RegisterSunkenTempleRoster(std::vector<BossRosterPatch>& t)
             // swept FIRST. A ClearRadius event (17) clears every reachable
             // hostile within 60yd (2D) and a 20yd floor band of the pit
             // centre — z-banded so the upper defender balconies and the
-            // deep statue/Atal'alarion pit are excluded. arriveRadius 20
-            // puts the tank in the circle before the clear gate evaluates.
+            // deep statue/Atal'alarion pit are excluded. The anchor hangs
+            // over the open pit: the walkable rim is ~20-27yd from it, so
+            // arriveRadius 20 left the tank pacing the rim ("dist=20.2 >
+            // arriveRadius=20.0") until no_progress (31 runs stalled there,
+            // 0 kills). 32 lands anywhere on the rim floor; the clear itself
+            // still sweeps the full 60yd band.
             MakeObjective(OBJ(17), /*orderIndex*/ 1, 109, "Central Circle (pre-clear)",
-                          -467.0f, 95.0f, -91.0f, /*arriveRadius*/ 20.0f,
+                          -467.0f, 95.0f, -91.0f, /*arriveRadius*/ 32.0f,
                           /*gateEntry*/ 0, /*hook*/ 0, /*eventId*/ 17),
 
             // Required spine: Weaver + Dreamscythe (un-phased by Jammal'an).

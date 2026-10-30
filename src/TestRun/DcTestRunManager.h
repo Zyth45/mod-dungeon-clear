@@ -10,6 +10,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -170,6 +171,14 @@ public:
         return _reservedGuids.find(guid) != _reservedGuids.end();
     }
 
+    // Why did a run member log out? A real-character run aborts when one of
+    // its members leaves the world ("left the run"), and by the next sample
+    // nothing about the character is left to ask. The logout hook notes the
+    // member's state at that moment — any thread, cheap no-op for everyone
+    // not in a monitored run — and the abort path takes the note back out.
+    void NoteMemberLogout(Player* bot);
+    std::string TakeLogoutNote(ObjectGuid guid);
+
     // Drive every live job from the global playerbots tick (world thread).
     void Tick(uint32 diff);
 
@@ -193,6 +202,12 @@ private:
     std::vector<std::unique_ptr<DcTestRunJob>> _runs;
     mutable std::mutex _runsMutex;                  // guards _runs vs observer threads
     std::unordered_set<ObjectGuid> _reservedGuids;  // world-thread only
+    // Logout notes: members of monitoring runs (rebuilt every Tick) and what
+    // the hook saw when one of them logged out. Own mutex — bots log out
+    // from map threads too, and the hook must never wait on _runsMutex.
+    std::mutex _logoutMutex;
+    std::unordered_set<ObjectGuid> _monitoredGuids;
+    std::unordered_map<ObjectGuid, std::string> _logoutNotes;
     uint32 _liveAccumMs = 0;                        // live-file throttle
     bool _liveWasActive = false;                    // for the final active:false write
     std::size_t _provisionRR = 0;                   // round-robin tick offset

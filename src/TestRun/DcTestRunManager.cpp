@@ -10,14 +10,19 @@
 #include <limits>
 
 #include "CharacterCache.h"
+#include "Group.h"
+#include "Log.h"
 #include "ObjectAccessor.h"
 #include "ObjectGuid.h"
 #include "ObjectMgr.h"
 #include "Player.h"
 
 #include "Playerbots.h"
+#include "PlayerbotAI.h"
 #include "PlayerbotMgr.h"
 #include "RandomPlayerbotMgr.h"
+#include "StringFormat.h"
+#include "WorldSession.h"
 #include "TestRun/DcSelfFoundPlanner.h"
 
 #include "Ai/Dungeon/DungeonClear/Settings/DcSettings.h"
@@ -520,6 +525,50 @@ uint32 DcTestRunManager::CapHeadroom() const
     return maxConcurrent > _runs.size() ? maxConcurrent - static_cast<uint32>(_runs.size()) : 0;
 }
 
+void DcTestRunManager::NoteMemberLogout(Player* bot)
+{
+    if (!bot)
+        return;
+    ObjectGuid const guid = bot->GetGUID();
+    {
+        std::lock_guard<std::mutex> lock(_logoutMutex);
+        if (_monitoredGuids.find(guid) == _monitoredGuids.end())
+            return;
+    }
+
+    // What separates the candidates: the bot rotation only logs out an
+    // ungrouped random bot, the secure-login hook a character whose owner
+    // connects (real session), a teardown/release a bot already out of the
+    // instance, a dead or ghost bot the revive paths.
+    PlayerbotAI* ai = GET_PLAYERBOT_AI(bot);
+    Player* master = ai ? ai->GetMaster() : nullptr;
+    Group* group = bot->GetGroup();
+    std::string note = Acore::StringFormat(
+        "map {} inWorld {} alive {} group {} ({} members) master {} randomBot {} loggingOut {} "
+        "teleporting {}",
+        bot->GetMapId(), bot->IsInWorld() ? 1 : 0, bot->IsAlive() ? 1 : 0, group ? 1 : 0,
+        group ? group->GetMembersCount() : 0, master ? master->GetName() : std::string("none"),
+        sRandomPlayerbotMgr.IsRandomBot(bot) ? 1 : 0,
+        bot->GetSession() && bot->GetSession()->isLogingOut() ? 1 : 0,
+        bot->IsBeingTeleported() ? 1 : 0);
+    LOG_WARN("playerbots.dungeonclear", "TESTRUN member {} logging out mid-run: {}", bot->GetName(),
+             note);
+
+    std::lock_guard<std::mutex> lock(_logoutMutex);
+    _logoutNotes[guid] = std::move(note);
+}
+
+std::string DcTestRunManager::TakeLogoutNote(ObjectGuid guid)
+{
+    std::lock_guard<std::mutex> lock(_logoutMutex);
+    auto it = _logoutNotes.find(guid);
+    if (it == _logoutNotes.end())
+        return std::string();
+    std::string note = std::move(it->second);
+    _logoutNotes.erase(it);
+    return note;
+}
+
 void DcTestRunManager::Tick(uint32 diff)
 {
     // A plan in a between-runs window (backoff, or all children just finished)
@@ -544,6 +593,18 @@ void DcTestRunManager::Tick(uint32 diff)
         // One factory-provision roll per world tick realm-wide
         // (DcProvisionBudget, re-armed once per tick by the module's global
         // hook); the rotating offset gives each run a fair first crack at it.
+        // Members of monitoring runs, as of the start of this tick: a
+        // teardown that logs its party out this tick leaves notes nobody
+        // takes, cleared with the run below.
+        {
+            std::lock_guard<std::mutex> lock(_logoutMutex);
+            _monitoredGuids.clear();
+            for (std::unique_ptr<DcTestRunJob> const& job : _runs)
+                if (job->IsMonitoring())
+                    for (ObjectGuid const& g : job->BotGuids())
+                        _monitoredGuids.insert(g);
+        }
+
         std::size_t const n = _runs.size();
         for (std::size_t k = 0; k < n; ++k)
             _runs[(_provisionRR + k) % n]->Tick(diff);
@@ -586,7 +647,10 @@ void DcTestRunManager::Tick(uint32 diff)
                                                                 std::move(outcome));
                 }
                 for (ObjectGuid const& g : (*it)->BotGuids())
+                {
                     _reservedGuids.erase(g);
+                    TakeLogoutNote(g);
+                }
                 it = _runs.erase(it);
             }
             else
