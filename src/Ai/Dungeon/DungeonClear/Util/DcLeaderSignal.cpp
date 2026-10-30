@@ -356,7 +356,14 @@ Player* DcLeaderSignal::FindLeaderTank(Player* reference)
     // sees the same candidate set and elects the same leader.
     //
     // Election rule differs by group kind:
-    //   * Party (5-man): lowest-GUID tank bot — a deterministic, state-free pick.
+    //   * Party (5-man): the tank bot that owns the run (its `dc on` enabled
+    //     it), lowest GUID among several; with no owner yet, lowest GUID. A
+    //     member whose spec only READS as tank (a self-found dps with a tank
+    //     spec, a bear in the wrong form) can carry a lower GUID than the real
+    //     tank — a state-free lowest-GUID pick then handed the lead to a bot
+    //     that was never enabled, the enabled tank stopped advancing as a
+    //     follower, and the run sat on "Plotting a route" at the entrance
+    //     until no_progress (5 of 6 non-ST zero-kill self-found stalls).
     //   * Raid: the bot flagged Main Tank (MEMBER_FLAG_MAINTANK) wins outright; if
     //     none is flagged (or the flagged member isn't an eligible tank bot), the
     //     eligible tank bot with the highest equipped gear score wins, GUID-tiebroken.
@@ -382,6 +389,7 @@ Player* DcLeaderSignal::FindLeaderTank(Player* reference)
     }
 
     Player* leader = nullptr;
+    bool leaderOwnsRun = false;
     uint32 bestGearScore = 0;
     for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
     {
@@ -401,9 +409,14 @@ Player* DcLeaderSignal::FindLeaderTank(Player* reference)
 
         if (!isRaid)
         {
-            // Party: lowest GUID.
-            if (!leader || member->GetGUID() < leader->GetGUID())
+            // Party: the run owner, then lowest GUID.
+            bool const ownsRun = DcRun::Of(memberAI).enabled;
+            if (!leader || (ownsRun && !leaderOwnsRun) ||
+                (ownsRun == leaderOwnsRun && member->GetGUID() < leader->GetGUID()))
+            {
                 leader = member;
+                leaderOwnsRun = ownsRun;
+            }
             continue;
         }
 
